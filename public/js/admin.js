@@ -126,6 +126,42 @@
         closeNav();
     });
 
+    /* ---------- Hierarchy tree: expand / collapse ----------
+       Delegated, so the tree keeps working after a page swap. Collapsing is a
+       class on the node; the branch stays in the DOM, which is what lets
+       "Expand all" reopen it instantly. */
+
+    function setCollapsed(node, collapsed) {
+        node.classList.toggle('is-collapsed', collapsed);
+
+        var toggle = node.querySelector(':scope > .tree__row [data-tree-toggle]');
+        if (toggle) toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    }
+
+    document.addEventListener('click', function (event) {
+        var toggle = event.target.closest('[data-tree-toggle]');
+        if (toggle) {
+            event.preventDefault();
+            var node = toggle.closest('.tree__node');
+            if (node) setCollapsed(node, !node.classList.contains('is-collapsed'));
+            return;
+        }
+
+        var bulk = event.target.closest('[data-tree-expand], [data-tree-collapse]');
+        if (!bulk) return;
+
+        event.preventDefault();
+
+        var collapse = bulk.hasAttribute('data-tree-collapse');
+        var scope = document.getElementById(bulk.dataset.treeExpand || bulk.dataset.treeCollapse);
+        if (!scope) return;
+
+        scope.querySelectorAll('.tree__node').forEach(function (node) {
+            // Only branches collapse - a leaf has nothing to hide.
+            if (node.querySelector(':scope > .tree__children')) setCollapsed(node, collapse);
+        });
+    });
+
     /* ===================== Swapping ===================== */
 
     function progress(on) {
@@ -384,8 +420,154 @@
             field.addEventListener('change', function () { field.form.requestSubmit(); });
         });
 
+        initHierarchyPickers();
+        initBulkSelect();
         initFilePreviews();
         initStackedTables();
+    }
+
+    /* ---------- Select-all for bulk assignment ----------
+
+       The toggle lives outside the table it controls, so it names its target
+       by id rather than relying on where it sits in the markup. */
+
+    function initBulkSelect() {
+        document.querySelectorAll('[data-bulk-toggle]').forEach(function (toggle) {
+            var scope = document.getElementById(toggle.dataset.bulkToggle);
+            if (!scope) return;
+
+            var items = Array.prototype.slice.call(scope.querySelectorAll('[data-bulk-item]'));
+            if (!items.length) return;
+
+            var counter = document.querySelector(
+                '[data-bulk-count="' + toggle.dataset.bulkToggle + '"]'
+            );
+
+            function sync() {
+                var picked = items.filter(function (item) { return item.checked; }).length;
+
+                toggle.checked = picked === items.length;
+                // Part-selected reads as neither on nor off.
+                toggle.indeterminate = picked > 0 && picked < items.length;
+
+                if (counter) {
+                    counter.textContent = picked
+                        ? picked + ' of ' + items.length + ' selected'
+                        : 'Nothing selected yet';
+                }
+            }
+
+            toggle.addEventListener('change', function () {
+                items.forEach(function (item) { item.checked = toggle.checked; });
+                sync();
+            });
+
+            items.forEach(function (item) { item.addEventListener('change', sync); });
+
+            sync();
+        });
+    }
+
+    /* ---------- Company -> Project -> Person dependent dropdowns ----------
+
+       Every option is already on the page, tagged with the level above it, so
+       narrowing is instant and needs no request. Options are removed and
+       re-added rather than hidden, because `display:none` on an <option> is
+       not honoured everywhere. */
+
+    function initHierarchyPickers() {
+        var groups = {};
+
+        document.querySelectorAll('select[data-hier-group]').forEach(function (select) {
+            var name = select.dataset.hierGroup;
+            groups[name] = groups[name] || {};
+            groups[name][select.dataset.hier] = select;
+        });
+
+        Object.keys(groups).forEach(function (name) { wireHierarchy(groups[name]); });
+    }
+
+    function wireHierarchy(group) {
+        var company = group.company;
+        var project = group.project;
+        var person = group.person;
+
+        if (!project && !person) return;
+
+        // Snapshot the full option list once - narrowing takes options out of
+        // the DOM, and this is what puts them back.
+        [project, person].forEach(function (select) {
+            if (select && !select._allOptions) {
+                select._allOptions = Array.prototype.slice.call(select.options);
+            }
+        });
+
+        // project id -> company id, for narrowing people by company alone.
+        var projectCompany = {};
+        if (project) {
+            project._allOptions.forEach(function (option) {
+                if (option.value) projectCompany[option.value] = option.dataset.company || '';
+            });
+        }
+
+        function narrow(select, keep) {
+            var wanted = select.value;
+            var options = select._allOptions.filter(keep);
+
+            select.textContent = '';
+            options.forEach(function (option) { select.appendChild(option); });
+
+            // Keep the choice if it survived the narrowing, otherwise clear it
+            // so a stale id is never submitted.
+            var kept = options.some(function (option) { return option.value === wanted; });
+            select.value = kept ? wanted : '';
+
+            // Scoped to the select's own form so two pickers on one page
+            // cannot write into each other's hint.
+            var hint = (select.form || document)
+                .querySelector('[data-hier-hint="' + select.dataset.hier + '"]');
+            if (hint) {
+                var empty = options.filter(function (option) { return option.value; }).length === 0;
+                hint.hidden = !empty;
+                hint.textContent = empty ? (select.dataset.hierEmpty || '') : '';
+            }
+
+            return kept ? wanted : '';
+        }
+
+        function sync() {
+            var companyValue = company ? company.value : '';
+            var projectValue = project ? project.value : '';
+
+            if (project) {
+                projectValue = narrow(project, function (option) {
+                    return !option.value
+                        || !companyValue
+                        || option.dataset.company === companyValue;
+                });
+            }
+
+            if (person) {
+                narrow(person, function (option) {
+                    if (!option.value) return true;
+
+                    var ids = (option.dataset.projects || '').split(',').filter(Boolean);
+
+                    // A project pins the list exactly; a company alone widens
+                    // it to everyone working anywhere in that company.
+                    if (projectValue) return ids.indexOf(projectValue) !== -1;
+                    if (companyValue) {
+                        return ids.some(function (id) { return projectCompany[id] === companyValue; });
+                    }
+                    return true;
+                });
+            }
+        }
+
+        if (company) company.addEventListener('change', sync);
+        if (project) project.addEventListener('change', sync);
+
+        sync();
     }
 
     /* ---------- Tables become cards on mobile ---------- */

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Models\TransactionAttachment;
+use App\Models\Attachment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -15,7 +15,7 @@ class AttachmentController extends Controller
      * public path, so this route is the only way to reach one - and it sits
      * behind the admin guard.
      */
-    public function show(TransactionAttachment $attachment): StreamedResponse
+    public function show(Attachment $attachment): StreamedResponse
     {
         $disk = Storage::disk($attachment->disk);
 
@@ -32,7 +32,7 @@ class AttachmentController extends Controller
         );
     }
 
-    public function download(TransactionAttachment $attachment): StreamedResponse
+    public function download(Attachment $attachment): StreamedResponse
     {
         $disk = Storage::disk($attachment->disk);
 
@@ -41,7 +41,7 @@ class AttachmentController extends Controller
         return $disk->download($attachment->path, $attachment->original_name);
     }
 
-    public function destroy(TransactionAttachment $attachment): RedirectResponse
+    public function destroy(Attachment $attachment): RedirectResponse
     {
         $attachment->deleteWithFile();
 

@@ -35,12 +35,21 @@
 html, body {
     margin: 0;
     padding: 0;
-    /* Both elements, not just body: with it on body alone the viewport can
-       still scroll sideways, because html's own overflow is what propagates
-       to the viewport. */
-    overflow-x: hidden;
     max-width: 100%;
 }
+
+/* html is what actually stops sideways scrolling: its overflow is the one
+   propagated to the viewport. */
+html { overflow-x: hidden; }
+
+/* clip, not hidden. `hidden` here would make body a scroll container in its
+   own right - body's overflow is not propagated, only html's - and because
+   body is sized by its content that container never scrolls. Any sticky
+   descendant then resolves against it, finds a scrollport that never moves,
+   and simply scrolls away with the page: that is what left a blank gap below
+   the sidebar. `clip` gives the same clipping without creating a scroll
+   container, so the sticky sidebar keeps resolving against the viewport. */
+body { overflow-x: clip; }
 
 body {
     background: var(--bg);
@@ -116,6 +125,10 @@ h3 { font-size: .95rem; }
 /* flex:1 + overflow-y means a short screen scrolls the menu, not the page,
    and the brand stays pinned at the top. */
 .sidebar__nav { padding: 12px 12px 24px; overflow-y: auto; flex: 1; }
+
+/* The first group heading sits right under the brand rule, where the nav's
+   own top padding is already doing the spacing. */
+.sidebar__nav > .sidebar__label:first-child { padding-top: 2px; }
 
 .sidebar__label {
     padding: 14px 10px 6px;
@@ -299,6 +312,17 @@ th.sortable .arrow { color: var(--brand); }
     font-weight: 650;
     white-space: nowrap;
 }
+/* A badge that is really a button - the recorded chip opens its payment
+   details. Resets what a <button> brings with it, and shows it is clickable. */
+.badge--button {
+    border: 1px dashed transparent;
+    font-family: inherit;
+    cursor: pointer;
+    padding: 3px 9px;
+}
+.badge--button:hover { border-color: currentColor; color: var(--text); }
+.badge--button:focus-visible { outline: 2px solid var(--brand); outline-offset: 1px; }
+
 .badge--expense { background: var(--expense-soft); color: var(--expense); }
 .badge--credit { background: var(--credit-soft); color: var(--credit); }
 .badge--muted { background: #f1f5f9; color: var(--muted); }
@@ -714,6 +738,249 @@ th.sortable .arrow { color: var(--brand); }
 
 .skeleton { background: linear-gradient(90deg, #eef2f7 25%, #f8fafc 50%, #eef2f7 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: 6px; }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+/* ==========================================================================
+   Hierarchy - Company > Project > Person
+   ========================================================================== */
+
+/* The tree itself. Every level is the same markup; only the accent colour and
+   the type scale change, so a fourth level would need no new rules. */
+.tree, .tree ul { list-style: none; margin: 0; padding: 0; }
+
+.tree__children {
+    margin-left: 17px;
+    padding-left: 16px;
+    /* The connector line down a branch. Dashed so it reads as structure
+       rather than as a border around content. */
+    border-left: 1px dashed var(--border);
+}
+
+.tree__node.is-collapsed > .tree__children { display: none; }
+
+.tree__row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    min-width: 0;
+}
+.tree__row:hover { background: #f8fafc; }
+
+/* Chevron. A leaf gets .tree__toggle--leaf, which keeps the same width so
+   every label on a level still lines up. */
+.tree__toggle {
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0;
+}
+.tree__toggle:hover { background: var(--sidebar-hover); color: var(--text); }
+.tree__toggle svg { width: 12px; height: 12px; transition: transform .15s ease; }
+.tree__node.is-collapsed > .tree__row .tree__toggle svg { transform: rotate(-90deg); }
+
+.tree__toggle--leaf {
+    border-color: transparent;
+    background: none;
+    cursor: default;
+    color: #cbd5e1;
+}
+.tree__toggle--leaf:hover { background: none; color: #cbd5e1; }
+
+.tree__label { min-width: 0; flex: 1; }
+.tree__label a { color: inherit; }
+.tree__name { font-weight: 600; overflow-wrap: break-word; }
+.tree__meta { color: var(--muted); font-size: .78rem; }
+
+/* Level accents, matching the sidebar's brand colour at the top and fading
+   down the hierarchy so depth is readable at a glance. */
+.tree__node--company > .tree__row { border-left: 3px solid var(--brand); }
+.tree__node--company > .tree__row .tree__name { font-size: .98rem; }
+.tree__node--project > .tree__row { border-left: 3px solid #818cf8; }
+.tree__node--person > .tree__row { border-left: 3px solid #c7d2fe; }
+.tree__node--company > .tree__row,
+.tree__node--project > .tree__row,
+.tree__node--person > .tree__row { padding-left: 8px; }
+
+/* The three money figures on a tree row. Tabular numerals keep the columns
+   aligned even though each row sizes itself. */
+.tree__money {
+    display: flex;
+    gap: 16px;
+    flex: 0 0 auto;
+    font-variant-numeric: tabular-nums;
+    font-size: .84rem;
+}
+.tree__money span { display: grid; gap: 1px; text-align: right; min-width: 84px; }
+.tree__money .k {
+    font-size: .66rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 650;
+}
+.tree__money .v { font-weight: 650; }
+
+/* An empty branch - a company with no projects, a project with nobody on it. */
+.tree__empty {
+    padding: 7px 10px 7px 12px;
+    color: var(--muted);
+    font-size: .82rem;
+}
+
+/* Company > Project > Person shown as a path, on a transaction row or a
+   detail page. */
+.hier-path {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    font-size: .82rem;
+    min-width: 0;
+}
+.hier-path span { overflow-wrap: break-word; }
+.hier-path span + span::before { content: "/"; margin-right: 5px; color: #cbd5e1; }
+.hier-path .lead { color: var(--muted); }
+
+/* ==========================================================================
+   Settlement - equal partner distribution
+   ========================================================================== */
+
+/* Project sub-navigation. A scroll strip rather than a wrapping block, so a
+   seven-item bar never pushes the page sideways on a phone. */
+.tabs {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.tab {
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    color: var(--muted);
+    font-size: .87rem;
+    font-weight: 550;
+    white-space: nowrap;
+}
+.tab:hover { background: var(--sidebar-hover); color: var(--text); text-decoration: none; }
+.tab--active { background: var(--brand); color: #fff; }
+.tab--active:hover { background: var(--brand-dark); color: #fff; }
+
+/* Agreed / paid / still to pay, above the payment form. */
+.pay-progress {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px;
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: #f8fafc;
+    font-variant-numeric: tabular-nums;
+}
+.pay-progress span { display: grid; gap: 2px; }
+.pay-progress .k {
+    font-size: .68rem;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 650;
+}
+.pay-progress .v { font-weight: 700; font-size: .96rem; }
+
+/* WHO -> PAYS -> WHOM -> HOW MUCH, one row each. */
+.settle-list { display: grid; gap: 10px; }
+
+.settle {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    min-width: 0;
+}
+
+.settle--link { color: inherit; }
+.settle--link:hover { background: #f8fafc; text-decoration: none; border-color: #cbd5e1; }
+
+/* The expense-only and profit-only lists explain the net plan rather than
+   being paid themselves, so they read as reference, not as actions. */
+.settle--muted {
+    background: #f8fafc;
+    border-style: dashed;
+    padding: 9px 12px;
+}
+.settle--muted .settle__amount { color: var(--text); font-weight: 650; }
+
+.settle__flow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.settle__who { font-weight: 650; color: var(--text); overflow-wrap: break-word; }
+a.settle__who:hover { color: var(--brand); }
+
+/* The arrow carries the whole meaning of the row, so it is coloured rather
+   than left as grey punctuation. */
+.settle__arrow {
+    color: var(--brand);
+    font-size: 1.05rem;
+    line-height: 1;
+    flex: 0 0 auto;
+}
+
+.settle__amount {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    flex: 0 0 auto;
+    color: var(--expense);
+}
+
+.settle__action {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+/* ---------- Bulk selection column ---------- */
+
+/* Narrow and centred, so the tick boxes form a clean edge down the table
+   rather than floating in a full-width cell. */
+table.data th.pick,
+table.data td.pick {
+    width: 44px;
+    text-align: center;
+    padding-right: 0;
+}
+table.data td.pick .check { gap: 0; }
+
+/* On mobile the table stacks into cards, where a lone tick box with the
+   header "Pick" beside it is exactly right - no override needed. */
+
 
 /* ==========================================================================
    Responsive - tablet, then mobile. Desktop rules above stay untouched.
@@ -930,6 +1197,82 @@ th.sortable .arrow { color: var(--brand); }
 
     .login { padding: 14px; }
     .login__card { padding: 24px 18px; }
+}
+
+/* ---------- Hierarchy on tablet and mobile ----------
+   The tree is the one piece that would otherwise force sideways scrolling:
+   a deep branch plus three money columns is wider than a phone. Below 767px
+   the row wraps instead - label on one line, the figures underneath - and the
+   indent per level shrinks, so a four-level branch still fits the viewport. */
+
+@media (max-width: 991px) {
+    .tree__money { gap: 12px; }
+    .tree__money span { min-width: 76px; }
+}
+
+@media (max-width: 767px) {
+    .tree__children { margin-left: 10px; padding-left: 11px; }
+
+    .tree__row { flex-wrap: wrap; row-gap: 6px; }
+
+    /* The figures move to their own line and share it evenly, so they line up
+       down the branch rather than ragging against the label above. */
+    .tree__money {
+        flex: 1 0 100%;
+        gap: 8px;
+        padding-left: 32px;
+    }
+    .tree__money span {
+        min-width: 0;
+        flex: 1 1 0;
+        text-align: left;
+    }
+
+    /* Wide hierarchy tables scroll inside their own card, never the page. */
+    .table-wrap { max-width: 100%; }
+}
+
+@media (max-width: 575px) {
+    .tree__row { padding: 7px 8px; }
+    .tree__money { padding-left: 0; }
+    .tree__money .k { font-size: .62rem; }
+    .tree__money .v { font-size: .84rem; }
+}
+
+/* ---------- Settlement on tablet and mobile ----------
+   A settlement row is four things on one line on desktop. Below 767px it
+   becomes a card - who pays whom, the amount, then the buttons - so the whole
+   plan stays readable without the page ever scrolling sideways. */
+
+@media (max-width: 767px) {
+    .settle {
+        flex-wrap: wrap;
+        row-gap: 10px;
+        align-items: flex-start;
+    }
+
+    .settle__flow { flex: 1 1 100%; }
+
+    /* The amount leads the second line, where the eye lands after the names. */
+    .settle__amount { flex: 0 0 auto; font-size: 1.05rem; }
+
+    .settle__action {
+        flex: 1 1 auto;
+        justify-content: flex-end;
+    }
+
+    /* Tabs keep their own scroll rather than wrapping into a tall block. */
+    .tabs { border-radius: var(--radius-sm); }
+}
+
+@media (max-width: 575px) {
+    /* Buttons go full width like every other action row at this size. */
+    .settle__action { flex: 1 1 100%; justify-content: flex-start; }
+    .settle__action form { flex: 1 1 auto; }
+    .settle__action .btn { width: 100%; }
+
+    .settle__flow { gap: 7px; }
+    .tab { padding: 8px 12px; font-size: .84rem; }
 }
 
 @media print {

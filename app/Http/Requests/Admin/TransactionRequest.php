@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Http\Requests\Admin\Concerns\ValidatesHierarchy;
 use App\Models\Transaction;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -12,6 +13,8 @@ use Illuminate\Validation\Rule;
  */
 abstract class TransactionRequest extends FormRequest
 {
+    use ValidatesHierarchy;
+
     abstract public function transactionType(): string;
 
     public function authorize(): bool
@@ -22,6 +25,12 @@ abstract class TransactionRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // Only creation demands an *active* company and project. Editing
+            // an older record whose company was since deactivated must stay
+            // possible, and the dropdowns already keep inactive entries out of
+            // the everyday choice.
+            ...$this->hierarchyRules($this->isMethod('POST')),
+
             'title' => ['required', 'string', 'min:2', 'max:150'],
             // gt:0 rejects zero and negatives; the regex pins it to 2 decimals.
             'amount' => ['required', 'numeric', 'gt:0', 'max:9999999999', 'regex:/^\d+(\.\d{1,2})?$/'],
@@ -67,6 +76,8 @@ abstract class TransactionRequest extends FormRequest
             'attachments.max' => 'You can attach at most 10 files.',
             'attachments.*.max' => 'Each file must be 5 MB or smaller.',
             'attachments.*.mimes' => 'Attachments must be JPG, PNG, WEBP, GIF or PDF files.',
+
+            ...$this->hierarchyMessages($this->transactionType()),
         ];
     }
 
@@ -77,6 +88,9 @@ abstract class TransactionRequest extends FormRequest
             'transaction_date' => 'date',
             'payment_method' => 'payment method',
             'payment_by_id' => 'payment by',
+            'company_id' => 'company',
+            'project_id' => 'project',
+            'person_id' => 'person',
         ];
     }
 }

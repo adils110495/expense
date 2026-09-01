@@ -1,6 +1,7 @@
 @extends('admin.layouts.app')
 
 @php
+    use App\Services\SettlementEngine;
     use App\Support\Money;
     use App\Models\Setting;
     $dateFormat = Setting::get('date_format') ?? 'd M Y';
@@ -75,6 +76,131 @@
             </div>
         </div>
 
+        {{-- Settlement overview, on the same period as the rest of the page:
+             the filter narrows the transactions that create the debt and the
+             payments that have already settled part of it. --}}
+        <div class="card">
+            <div class="card__head">
+                <h2>Settlement overview</h2>
+                <div class="btn-row">
+                    <span class="badge badge--muted">{{ $range->label() }}</span>
+                    <a href="{{ route('admin.settlements.index') }}" class="btn btn--sm">History</a>
+                </div>
+            </div>
+
+            <div class="card__body">
+                <div class="grid grid--stats">
+                    {{-- Costs and income shown apart, then the net that is
+                         actually paid - one figure would hide both. --}}
+                    <x-stat-card label="Expenses To Settle"
+                                 :value="Money::format(SettlementEngine::rupees($settlementExpense))"
+                                 meta="Reimbursement owed on shared costs"
+                                 variant="expense"/>
+                    <x-stat-card label="Profit To Distribute"
+                                 :value="Money::format(SettlementEngine::rupees($settlementIncome))"
+                                 meta="Income still owed to partners"
+                                 variant="credit"/>
+                    <x-stat-card label="Net If Settled Together"
+                                 :value="Money::format(SettlementEngine::rupees($settlementTotal))"
+                                 meta="Same result in fewer transfers"
+                                 :variant="$settlementTotal > 0 ? 'negative' : 'credit'"/>
+                    <x-stat-card label="Partners Who Need To Pay" :value="number_format($payers)"
+                                 meta="Holding more than their share"/>
+                    <x-stat-card label="Partners Who Need To Receive" :value="number_format($receivers)"
+                                 meta="Holding less than their share"/>
+                </div>
+            </div>
+
+            {{-- Two lists, never one merged total: what is owed on shared
+                 costs and what is owed on shared credit are different debts
+                 and are paid separately. --}}
+            <div class="grid grid--halves" style="padding:0 18px 18px;">
+                @foreach ([
+                    ['Expense payments', $settlementExpenseTransfers, $settlementExpenseCount,
+                     'Reimbursing whoever paid more than their share of the costs.', 'expense'],
+                    ['Credit / profit payments', $settlementIncomeTransfers, $settlementIncomeCount,
+                     'Passing on the share of credit each partner has not yet drawn.', 'credit'],
+                ] as [$sideTitle, $sideTransfers, $sideCount, $sideNote, $sideVariant])
+                    <div class="card">
+                        <div class="card__head">
+                            <h2>{{ $sideTitle }}</h2>
+                            <span class="badge badge--{{ $sideVariant }}">
+                                <span class="dot"></span>{{ $sideCount }}
+                            </span>
+                        </div>
+
+                        <div class="card__body">
+                            <p class="hint" style="margin:0 0 12px;">{{ $sideNote }}</p>
+
+                            @if (empty($sideTransfers))
+                                <p class="hint" style="margin:0;">Nothing outstanding on this side.</p>
+                            @else
+                                <div class="settle-list">
+                                    @foreach ($sideTransfers as $transfer)
+                                        <a class="settle settle--link"
+                                           href="{{ route('admin.projects.settlement', $transfer['project']) }}">
+                                            <span class="settle__flow">
+                                                <span class="settle__who">{{ $transfer['from']->name }}</span>
+                                                <span class="settle__arrow" aria-label="pays">&rarr;</span>
+                                                <span class="settle__who">{{ $transfer['to']->name }}</span>
+                                            </span>
+                                            <span class="settle__amount">
+                                                {{ Money::format(SettlementEngine::rupees($transfer['amount'])) }}
+                                            </span>
+                                            <span class="settle__action muted small">{{ $transfer['project']->name }}</span>
+                                        </a>
+                                    @endforeach
+                                </div>
+
+                                @if ($sideCount > count($sideTransfers))
+                                    <p class="hint" style="margin:12px 0 0;">
+                                        Showing the {{ count($sideTransfers) }} largest of {{ $sideCount }}.
+                                        Open a project's Settlement tab for its full plan.
+                                    </p>
+                                @endif
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+
+        {{-- Company -> Project -> Person, for the same period as everything
+             else on the page. Every figure on it is summed from transactions
+             at read time, so it cannot drift from the cards above. --}}
+        <div class="card">
+            <div class="card__head">
+                <h2>Hierarchy</h2>
+                <div class="btn-row">
+                    <button type="button" class="btn btn--sm" data-tree-expand="dashboard-tree">Expand all</button>
+                    <button type="button" class="btn btn--sm" data-tree-collapse="dashboard-tree">Collapse all</button>
+                    <a href="{{ route('admin.hierarchy.index', $range->queryParams()) }}" class="btn btn--sm">Full view</a>
+                </div>
+            </div>
+
+            @if ($unassigned > 0)
+                <div class="card__body" style="padding-bottom:0;">
+                    <div class="alert alert--warn" style="margin:0;">
+                        {{ $unassigned }} transaction(s) in this period are not attached to a company,
+                        project and person, so they are missing from the branches below and from
+                        settlement. <a href="{{ route('admin.transactions.assign') }}">Assign them now</a>.
+                    </div>
+                </div>
+            @endif
+
+            @if (empty($tree))
+                <x-empty-state
+                    title="No companies yet"
+                    message="Add a company, give it a project, and assign people to that project - their credits and expenses then roll up through the tree."
+                    :action="route('admin.companies.create')"
+                    action-label="+ Add Company"/>
+            @else
+                <div class="card__body">
+                    @include('admin.partials.tree', ['tree' => $tree, 'id' => 'dashboard-tree'])
+                </div>
+            @endif
+        </div>
+
         {{-- Where the money went --}}
         <div class="grid grid--halves">
             <div class="card">
@@ -110,7 +236,9 @@
                     <div class="btn-row">
                         <a href="{{ route('admin.expenses.create') }}" class="btn btn--primary">+ Add Expense</a>
                         <a href="{{ route('admin.credits.create') }}" class="btn">+ Add Credit</a>
-                        <a href="{{ route('admin.categories.index') }}" class="btn">Categories</a>
+                        <a href="{{ route('admin.companies.create') }}" class="btn">+ Company</a>
+                        <a href="{{ route('admin.projects.create') }}" class="btn">+ Project</a>
+                        <a href="{{ route('admin.people.create') }}" class="btn">+ Person</a>
                     </div>
                     <p class="hint mt" style="margin-bottom:0;">
                         Every figure on this page is calculated live from the transactions table,
@@ -144,6 +272,7 @@
                                 <th>Date</th>
                                 <th>Type</th>
                                 <th>Description</th>
+                                <th>Company / Project / Person</th>
                                 <th>Category</th>
                                 <th class="num">Amount</th>
                                 <th>Payment Method</th>
@@ -168,6 +297,9 @@
                                         @if ($row->description)
                                             <div class="sub">{{ Str::limit($row->description, 60) }}</div>
                                         @endif
+                                    </td>
+                                    <td>
+                                        @include('admin.partials.hier-path', ['row' => $row])
                                     </td>
                                     <td>{{ $row->category?->name ?? '--' }}</td>
                                     <td class="num amount--{{ $row->type }}">

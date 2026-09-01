@@ -11,6 +11,9 @@
     $carry = array_filter([
         'q' => request('q'),
         'type' => request('type'),
+        'company_id' => request('company_id'),
+        'project_id' => request('project_id'),
+        'person_id' => request('person_id'),
         'category_id' => request('category_id'),
         'payment_method' => request('payment_method'),
         'range' => $range->preset,
@@ -58,8 +61,14 @@
                     <div class="field col-md-3 col-lg-3 col-sm-12 col-xs-12">
                         <label for="q">Search</label>
                         <input id="q" type="search" name="q" class="input" value="{{ request('q') }}"
-                               placeholder="Title, description, notes, category">
+                               placeholder="Title, company, project, person, category">
                     </div>
+
+                    {{-- Company -> Project -> Person, each narrowing the next. --}}
+                    @include('admin.partials.hierarchy-filters', [
+                        'group' => 'tx-filter',
+                        'prefix' => 'tx',
+                    ])
 
                     <div class="field col-md-3 col-lg-3 col-sm-12 col-xs-12">
                         <label for="type">Type</label>
@@ -125,6 +134,7 @@
                 <div class="btn-row">
                     <a href="{{ route('admin.expenses.create') }}" class="btn btn--sm">+ Expense</a>
                     <a href="{{ route('admin.credits.create') }}" class="btn btn--sm">+ Credit</a>
+                    <a href="{{ route('admin.transactions.assign') }}" class="btn btn--sm">Bulk assign</a>
                 </div>
             </div>
 
@@ -149,6 +159,7 @@
                                     'column' => 'title', 'text' => 'Description',
                                     'url' => route('admin.transactions.index'), 'carry' => $carry,
                                 ])
+                                <th>Company / Project / Person</th>
                                 <th>Category</th>
                                 @include('admin.partials.sort-th', [
                                     'column' => 'amount', 'text' => 'Amount', 'num' => true,
@@ -173,6 +184,9 @@
                                         @if ($row->description)
                                             <div class="sub">{{ Str::limit($row->description, 60) }}</div>
                                         @endif
+                                    </td>
+                                    <td>
+                                        @include('admin.partials.hier-path', ['row' => $row])
                                     </td>
                                     <td>{{ $row->category?->name ?? '--' }}</td>
                                     <td class="num amount--{{ $row->type }}">

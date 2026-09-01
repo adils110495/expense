@@ -10,12 +10,15 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExportController extends Controller
 {
-    // Amount must stay at index 5 - streamExcel() types that column as a
-    // number so Excel can sum it. Append new columns after it, not before.
+    // The amount column is typed as a number by streamExcel() so Excel can
+    // sum it; AMOUNT_COLUMN below is what keeps the two in step, so columns
+    // can be inserted anywhere as long as both lists move together.
     private const HEADERS = [
-        'Date', 'Type', 'Title', 'Description', 'Category',
-        'Amount', 'Payment Method', 'Payment By', 'Location', 'Notes', 'Created By',
+        'Date', 'Type', 'Company', 'Project', 'Person', 'Title', 'Description',
+        'Category', 'Amount', 'Payment Method', 'Payment By', 'Location', 'Notes', 'Created By',
     ];
+
+    private const AMOUNT_COLUMN = 8;
 
     public function __construct(private readonly TransactionController $transactions) {}
 
@@ -29,7 +32,7 @@ class ExportController extends Controller
 
         $range = DateRange::fromRequest($request, 'all');
         $query = $this->transactions->filtered($request, $range)
-            ->with(['category', 'creator', 'paymentBy'])
+            ->with(['category', 'creator', 'paymentBy', 'company', 'project', 'person'])
             ->orderBy('transaction_date')
             ->orderBy('id');
 
@@ -91,8 +94,8 @@ class ExportController extends Controller
             foreach ($chunk as $row) {
                 echo '<Row>';
                 foreach ($this->row($row) as $index => $value) {
-                    // Column 5 is the amount - keep it numeric so Excel can sum it.
-                    $type = $index === 5 ? 'Number' : 'String';
+                    // Keep the amount numeric so Excel can sum the column.
+                    $type = $index === self::AMOUNT_COLUMN ? 'Number' : 'String';
                     echo '<Cell><Data ss:Type="'.$type.'">'.$e($value).'</Data></Cell>';
                 }
                 echo '</Row>'."\n";
@@ -107,6 +110,9 @@ class ExportController extends Controller
         return [
             $row->transaction_date->format('Y-m-d'),
             ucfirst($row->type),
+            $row->company?->name,
+            $row->project?->name,
+            $row->person?->name,
             $row->title,
             $row->description,
             $row->category?->name,

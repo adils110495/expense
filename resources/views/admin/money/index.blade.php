@@ -12,6 +12,9 @@
     // Preserved across sort links so filters survive a column click.
     $carry = array_filter([
         'q' => request('q'),
+        'company_id' => request('company_id'),
+        'project_id' => request('project_id'),
+        'person_id' => request('person_id'),
         'category_id' => request('category_id'),
         'payment_method' => request('payment_method'),
         'payment_by_id' => request('payment_by_id'),
@@ -42,8 +45,14 @@
                     <div class="field col-md-3 col-lg-3 col-sm-12 col-xs-12">
                         <label for="q">Search</label>
                         <input id="q" type="search" name="q" class="input" value="{{ request('q') }}"
-                               placeholder="Title, description, notes, category">
+                               placeholder="Title, company, project, person, category">
                     </div>
+
+                    {{-- Company -> Project -> Person, each narrowing the next. --}}
+                    @include('admin.partials.hierarchy-filters', [
+                        'group' => 'money-filter',
+                        'prefix' => 'money',
+                    ])
 
                     <div class="field col-md-3 col-lg-3 col-sm-12 col-xs-12">
                         <label for="category_id">Category</label>
@@ -118,7 +127,7 @@
             @if ($records->isEmpty())
                 <x-empty-state
                     :title="'No '.Str::lower($plural).' found'"
-                    :message="request()->hasAny(['q', 'category_id', 'payment_method', 'payment_by_id']) || $range->preset !== 'all'
+                    :message="request()->hasAny(['q', 'company_id', 'project_id', 'person_id', 'category_id', 'payment_method', 'payment_by_id']) || $range->preset !== 'all'
                         ? 'No records match the current filters. Try widening the period or clearing the search.'
                         : 'Nothing has been recorded yet.'"
                     :action="route($routeName.'.create')"
@@ -137,7 +146,7 @@
                                     'column' => 'title', 'text' => $label.' Title',
                                     'url' => route($routeName.'.index'), 'carry' => $carry,
                                 ])
-                                <th>Description</th>
+                                <th>Company / Project / Person</th>
                                 <th>Category</th>
                                 @include('admin.partials.sort-th', [
                                     'column' => 'amount', 'text' => 'Amount', 'num' => true,
@@ -154,8 +163,15 @@
                             @foreach ($records as $row)
                                 <tr>
                                     <td class="nowrap">{{ $row->transaction_date->format($dateFormat) }}</td>
-                                    <td class="title">{{ $row->title }}</td>
-                                    <td class="sub">{{ $row->description ? Str::limit($row->description, 50) : '--' }}</td>
+                                    <td class="title">
+                                        {{ $row->title }}
+                                        @if ($row->description)
+                                            <div class="sub">{{ Str::limit($row->description, 40) }}</div>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        @include('admin.partials.hier-path', ['row' => $row])
+                                    </td>
                                     <td>{{ $row->category?->name ?? '--' }}</td>
                                     <td class="num amount--{{ $row->type }}">{{ Money::format($row->amount) }}</td>
                                     <td class="nowrap">{{ $row->payment_method_label }}</td>

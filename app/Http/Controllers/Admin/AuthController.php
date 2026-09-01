@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\UserActivity;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -58,12 +59,17 @@ class AuthController extends Controller
         // New session id on login - blocks session fixation.
         $request->session()->regenerate();
 
+        UserActivity::record('login', 'admins', Auth::guard('admin')->id(), 'Signed in');
+
         return redirect()->intended(route('admin.dashboard'))
             ->with('success', 'Welcome back, '.Auth::guard('admin')->user()->name.'.');
     }
 
     public function logout(Request $request): RedirectResponse
     {
+        // Logged before the guard forgets who it was.
+        UserActivity::record('logout', 'admins', Auth::guard('admin')->id(), 'Signed out');
+
         Auth::guard('admin')->logout();
 
         $request->session()->invalidate();

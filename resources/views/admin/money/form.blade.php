@@ -29,6 +29,15 @@
             </div>
         @endif
 
+        @if ($companies->isEmpty())
+            <div class="alert alert--warn">
+                There are no active companies yet.
+                <a href="{{ route('admin.companies.create') }}">Add a company</a>, give it a project,
+                and assign people to that project - every {{ Str::lower($label) }} has to belong to
+                a company, a project and a person.
+            </div>
+        @endif
+
         <div class="card">
             <div class="card__head">
                 <h2>{{ $label }} details</h2>
@@ -43,6 +52,14 @@
 
                 <div class="card__body">
                     <div class="row">
+                        {{-- Company -> Project -> Person comes first: the rest
+                             of the form describes money that has to belong
+                             somewhere, and each dropdown narrows the next. --}}
+                        @include('admin.partials.hierarchy-fields', [
+                            'group' => 'money-form',
+                            'record' => $record,
+                        ])
+
                         <div class="field col-md-4 col-lg-4 col-sm-12 col-xs-12">
                             <label for="title">{{ $label }} Title <span class="req">*</span></label>
                             <input id="title" name="title" type="text" maxlength="150" required
@@ -219,7 +236,8 @@
                 <div class="card__body" style="border-top:1px solid var(--border);">
                     <div class="btn-row">
                         <button type="submit" class="btn btn--primary"
-                                data-busy="Saving..." @disabled($categories->isEmpty())>
+                                data-busy="Saving..."
+                                @disabled($categories->isEmpty() || $companies->isEmpty())>
                             {{ $editing ? 'Update' : 'Save' }} {{ $label }}
                         </button>
                         <a href="{{ route($routeName.'.index') }}" class="btn">Cancel</a>

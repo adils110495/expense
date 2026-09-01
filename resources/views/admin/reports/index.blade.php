@@ -11,6 +11,9 @@
     $carry = array_filter([
         'q' => request('q'),
         'type' => request('type'),
+        'company_id' => request('company_id'),
+        'project_id' => request('project_id'),
+        'person_id' => request('person_id'),
         'category_id' => request('category_id'),
         'payment_method' => request('payment_method'),
         'range' => $range->preset,
@@ -41,6 +44,14 @@
 
             <div class="card__body">
                 <form method="GET" action="{{ route('admin.reports.index') }}" class="row">
+                    {{-- Company -> Project -> Person. Narrowing here narrows
+                         every table below it, so the company, project and
+                         person reports always answer the same question. --}}
+                    @include('admin.partials.hierarchy-filters', [
+                        'group' => 'report-filter',
+                        'prefix' => 'rep',
+                    ])
+
                     <div class="field col-md-3 col-lg-3 col-sm-12 col-xs-12">
                         <label for="type">Transaction type</label>
                         <select id="type" name="type" class="select">
@@ -152,6 +163,70 @@
             @endforeach
         </div>
 
+        {{-- Hierarchical reporting: the same period and filters, totalled at
+             each level of Company -> Project -> Person. Every figure is summed
+             from the transactions, so the three tables always reconcile with
+             each other and with the summary cards above. --}}
+        @foreach ([
+            ['Company report', $byCompany, 'company', 'admin.companies.show'],
+            ['Project report', $byProject, 'project', 'admin.projects.show'],
+            ['Person report', $byPerson, 'person', 'admin.people.show'],
+        ] as [$reportTitle, $reportRows, $level, $showRoute])
+            <div class="card">
+                <div class="card__head">
+                    <h2>{{ $reportTitle }}</h2>
+                    <span class="badge badge--muted">{{ count($reportRows) }} {{ Str::plural($level, count($reportRows)) }}</span>
+                </div>
+
+                @if (empty($reportRows))
+                    <x-empty-state
+                        title="Nothing to report"
+                        :message="'No transactions are attached to a '.$level.' for this period and filter set.'"/>
+                @else
+                    <div class="card__body card__body--flush">
+                        <div class="table-wrap">
+                            <table class="data data--narrow">
+                                <thead>
+                                <tr>
+                                    <th>{{ Str::ucfirst($level) }}</th>
+                                    @if ($level === 'project')
+                                        <th>Company</th>
+                                    @elseif ($level === 'person')
+                                        <th>Designation</th>
+                                    @endif
+                                    <th class="num">Credits</th>
+                                    <th class="num">Expenses</th>
+                                    <th class="num">Balance</th>
+                                    <th class="num">Transactions</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @foreach ($reportRows as $reportRow)
+                                    <tr>
+                                        <td class="title">
+                                            <a href="{{ route($showRoute, $reportRow['id']) }}">{{ $reportRow['name'] }}</a>
+                                        </td>
+                                        @if ($level === 'project')
+                                            <td>{{ $reportRow['company'] ?? '--' }}</td>
+                                        @elseif ($level === 'person')
+                                            <td class="sub">{{ $reportRow['designation'] ?: '--' }}</td>
+                                        @endif
+                                        <td class="num amount--credit">{{ Money::format($reportRow['totals']['credit']) }}</td>
+                                        <td class="num amount--expense">{{ Money::format($reportRow['totals']['expense']) }}</td>
+                                        <td class="num amount--{{ ((float) $reportRow['totals']['balance']) < 0 ? 'expense' : 'credit' }}">
+                                            {{ Money::format($reportRow['totals']['balance']) }}
+                                        </td>
+                                        <td class="num">{{ $reportRow['totals']['count'] }}</td>
+                                    </tr>
+                                @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                @endif
+            </div>
+        @endforeach
+
         <div class="card">
             <div class="card__head"><h2>By payment method</h2></div>
             @if (empty($byPaymentMethod))
@@ -205,6 +280,7 @@
                                 <th>Date</th>
                                 <th>Type</th>
                                 <th>Title</th>
+                                <th>Company / Project / Person</th>
                                 <th>Category</th>
                                 <th class="num">Amount</th>
                                 <th>Payment Method</th>
@@ -220,6 +296,9 @@
                                         </span>
                                     </td>
                                     <td class="title">{{ $row->title }}</td>
+                                    <td>
+                                        @include('admin.partials.hier-path', ['row' => $row])
+                                    </td>
                                     <td>{{ $row->category?->name ?? '--' }}</td>
                                     <td class="num amount--{{ $row->type }}">
                                         {{ $row->type === 'expense' ? '-' : '+' }}{{ Money::format($row->amount) }}

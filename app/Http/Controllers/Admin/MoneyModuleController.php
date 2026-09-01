@@ -4,11 +4,12 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\TransactionRequest;
+use App\Models\Attachment;
 use App\Models\Category;
 use App\Models\PaymentBy;
 use App\Models\Transaction;
-use App\Models\TransactionAttachment;
 use App\Support\DateRange;
+use App\Support\HierarchyOptions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -47,9 +48,15 @@ abstract class MoneyModuleController extends Controller
 
         $records = Transaction::query()
             ->where('type', $this->type)
-            ->with(['category', 'creator', 'paymentBy'])
+            ->with(['category', 'creator', 'paymentBy', 'company', 'project', 'person'])
             ->search($request->query('q'))
             ->between($range->from, $range->to)
+            // Company -> Project -> Person, each level optional and cumulative.
+            ->inHierarchy(
+                $request->query('company_id'),
+                $request->query('project_id'),
+                $request->query('person_id'),
+            )
             ->when($request->filled('category_id'), fn ($q) => $q->where('category_id', $request->query('category_id')))
             ->when($request->filled('payment_method'), fn ($q) => $q->where('payment_method', $request->query('payment_method')))
             ->when($request->filled('payment_by_id'), fn ($q) => $q->where('payment_by_id', $request->query('payment_by_id')))
@@ -61,6 +68,7 @@ abstract class MoneyModuleController extends Controller
         return view($this->view('index'), [
             'records' => $records,
             'categories' => $this->categories(),
+            ...HierarchyOptions::forFilters(),
             // Every entry, not just active ones - an old row may point at a
             // deactivated one and you still want to filter by it.
             'payers' => $this->supportsExtras ? PaymentBy::orderBy('name')->get() : collect(),
@@ -75,12 +83,25 @@ abstract class MoneyModuleController extends Controller
         ]);
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
+        // Arriving from a company, project or person page carries that branch
+        // into the form rather than making it be re-picked. Read as integers:
+        // these are hand-editable query parameters, and a non-numeric one must
+        // land as "nothing preselected" rather than anywhere near a type hint.
+        $record = new Transaction([
+            'type' => $this->type,
+            'transaction_date' => now(),
+            'company_id' => $request->integer('company_id') ?: null,
+            'project_id' => $request->integer('project_id') ?: null,
+            'person_id' => $request->integer('person_id') ?: null,
+        ]);
+
         return view($this->view('form'), [
-            'record' => new Transaction(['type' => $this->type, 'transaction_date' => now()]),
+            'record' => $record,
             'categories' => $this->categories(),
             'payers' => $this->payers(),
+            ...HierarchyOptions::forForm($record),
             'type' => $this->type,
             'label' => $this->label,
             'routeName' => $this->routeName,
@@ -112,7 +133,10 @@ abstract class MoneyModuleController extends Controller
         $this->guardType($transaction);
 
         return view($this->view('show'), [
-            'record' => $transaction->load(['category', 'creator', 'attachments', 'paymentBy']),
+            'record' => $transaction->load([
+                'category', 'creator', 'attachments', 'paymentBy',
+                'company', 'project', 'person',
+            ]),
             'label' => $this->label,
             'routeName' => $this->routeName,
             'extras' => $this->supportsExtras,
@@ -129,6 +153,7 @@ abstract class MoneyModuleController extends Controller
             'record' => $transaction->load('attachments'),
             'categories' => $this->categories($transaction->category_id),
             'payers' => $this->payers($transaction->payment_by_id),
+            ...HierarchyOptions::forForm($transaction),
             'type' => $this->type,
             'label' => $this->label,
             'routeName' => $this->routeName,
@@ -174,7 +199,7 @@ abstract class MoneyModuleController extends Controller
             // Scoped to this transaction so an id from another record cannot
             // be passed in to delete someone else's file.
             $transaction->attachments()->whereIn('id', $removeIds)->get()
-                ->each(fn (TransactionAttachment $attachment) => $attachment->deleteWithFile());
+                ->each(fn (Attachment $attachment) => $attachment->deleteWithFile());
         }
 
         foreach ($request->file('attachments', []) as $file) {

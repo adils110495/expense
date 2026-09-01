@@ -47,6 +47,40 @@
                         <dt>{{ $label }} Title</dt>
                         <dd>{{ $record->title }}</dd>
                     </div>
+
+                    {{-- Where this money belongs. Spelled out level by level
+                         rather than as one path, so there is never any doubt
+                         which company, project and person it rolls up to. --}}
+                    <div class="dl__row">
+                        <dt>Company</dt>
+                        <dd>
+                            @if ($record->company)
+                                <a href="{{ route('admin.companies.show', $record->company_id) }}">{{ $record->company->name }}</a>
+                            @else
+                                <span class="badge badge--off"><span class="dot"></span>Unassigned</span>
+                            @endif
+                        </dd>
+                    </div>
+                    <div class="dl__row">
+                        <dt>Project</dt>
+                        <dd>
+                            @if ($record->project)
+                                <a href="{{ route('admin.projects.show', $record->project_id) }}">{{ $record->project->name }}</a>
+                            @else
+                                <span class="badge badge--off"><span class="dot"></span>Unassigned</span>
+                            @endif
+                        </dd>
+                    </div>
+                    <div class="dl__row">
+                        <dt>Person</dt>
+                        <dd>
+                            @if ($record->person)
+                                <a href="{{ route('admin.people.show', $record->person_id) }}">{{ $record->person->name }}</a>
+                            @else
+                                <span class="badge badge--off"><span class="dot"></span>Unassigned</span>
+                            @endif
+                        </dd>
+                    </div>
                     <div class="dl__row">
                         <dt>Date</dt>
                         <dd>{{ $record->transaction_date->format($dateFormat) }}</dd>

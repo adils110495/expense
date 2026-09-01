@@ -2,16 +2,17 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Transaction extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, LogsActivity;
 
     public const TYPES = ['expense', 'credit'];
 
@@ -25,7 +26,8 @@ class Transaction extends Model
     ];
 
     protected $fillable = [
-        'type', 'title', 'description', 'category_id', 'amount',
+        'type', 'company_id', 'project_id', 'person_id',
+        'title', 'description', 'category_id', 'amount',
         'transaction_date', 'payment_method', 'payment_by_id', 'location', 'notes', 'created_by',
     ];
 
@@ -38,6 +40,21 @@ class Transaction extends Model
         ];
     }
 
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    public function project(): BelongsTo
+    {
+        return $this->belongsTo(Project::class);
+    }
+
+    public function person(): BelongsTo
+    {
+        return $this->belongsTo(Person::class);
+    }
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
@@ -48,9 +65,9 @@ class Transaction extends Model
         return $this->belongsTo(Admin::class, 'created_by');
     }
 
-    public function attachments(): HasMany
+    public function attachments(): MorphMany
     {
-        return $this->hasMany(TransactionAttachment::class);
+        return $this->morphMany(Attachment::class, 'attachable');
     }
 
     public function paymentBy(): BelongsTo
@@ -77,7 +94,8 @@ class Transaction extends Model
 
     /**
      * Free-text search across the fields the spec lists: title, description,
-     * notes and the related category name.
+     * notes and the related category name, plus the hierarchy the record
+     * hangs off - searching a company or a person's name finds their money.
      */
     public function scopeSearch(Builder $query, ?string $term): Builder
     {
@@ -92,7 +110,51 @@ class Transaction extends Model
                 ->orWhere('description', 'like', $like)
                 ->orWhere('notes', 'like', $like)
                 ->orWhere('location', 'like', $like)
-                ->orWhereHas('category', fn (Builder $c) => $c->where('name', 'like', $like));
+                ->orWhereHas('category', fn (Builder $c) => $c->where('name', 'like', $like))
+                ->orWhereHas('company', fn (Builder $c) => $c->where('name', 'like', $like))
+                ->orWhereHas('project', fn (Builder $c) => $c->where('name', 'like', $like))
+                ->orWhereHas('person', fn (Builder $c) => $c->where('name', 'like', $like));
         });
+    }
+
+    /**
+     * Narrows to one branch of the hierarchy. Each level is optional and they
+     * compose: company alone gives the whole company, company + project one
+     * project, all three one person's activity on one project.
+     */
+    public function scopeInHierarchy(
+        Builder $query,
+        mixed $companyId = null,
+        mixed $projectId = null,
+        mixed $personId = null,
+    ): Builder {
+        return $query
+            ->when(filled($companyId), fn (Builder $q) => $q->where('company_id', $companyId))
+            ->when(filled($projectId), fn (Builder $q) => $q->where('project_id', $projectId))
+            ->when(filled($personId), fn (Builder $q) => $q->where('person_id', $personId));
+    }
+
+    /**
+     * Rows whose Company -> Project -> Person chain is incomplete.
+     *
+     * Any one missing level is enough: a transaction with a company but no
+     * project never reaches a project or person total, and takes no part in
+     * that project's settlement. These are exactly the rows the bulk assign
+     * screen exists to clear.
+     */
+    public function scopeUnassigned(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $q) => $q
+            ->whereNull('company_id')
+            ->orWhereNull('project_id')
+            ->orWhereNull('person_id'));
+    }
+
+    /** True once the record sits on a complete Company -> Project -> Person path. */
+    public function getIsAssignedAttribute(): bool
+    {
+        return $this->company_id !== null
+            && $this->project_id !== null
+            && $this->person_id !== null;
     }
 }

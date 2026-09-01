@@ -4,12 +4,23 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Support\Facades\Storage;
 
-class TransactionAttachment extends Model
+/**
+ * A receipt or invoice, belonging to whatever it was uploaded against - a
+ * transaction or a settlement.
+ *
+ * Files live on the private disk and are streamed through an authenticated
+ * route, never exposed under a guessable public URL.
+ */
+class Attachment extends Model
 {
+    // attachable_type and attachable_id are set by the relation, not by mass
+    // assignment - a request must never be able to point a file at another
+    // owner by posting the keys.
     protected $fillable = [
-        'transaction_id', 'disk', 'path', 'original_name', 'mime_type', 'size', 'uploaded_by',
+        'disk', 'path', 'original_name', 'mime_type', 'size', 'uploaded_by',
     ];
 
     protected function casts(): array
@@ -17,9 +28,9 @@ class TransactionAttachment extends Model
         return ['size' => 'integer'];
     }
 
-    public function transaction(): BelongsTo
+    public function attachable(): MorphTo
     {
-        return $this->belongsTo(Transaction::class);
+        return $this->morphTo();
     }
 
     public function uploader(): BelongsTo

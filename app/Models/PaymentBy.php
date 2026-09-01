@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LogsActivity;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -9,7 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PaymentBy extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, LogsActivity;
 
     // Eloquent would pluralise this to "payment_bies".
     protected $table = 'payment_bys';
