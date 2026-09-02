@@ -29,6 +29,8 @@
          'icon' => 'M3 7h18v10H3zM3 11h18M7 15h4'],
         ['group' => 'Manage', 'route' => 'admin.reports.index', 'label' => 'Reports', 'pattern' => 'admin/reports*',
          'icon' => 'M6 20V10M12 20V4M18 20v-6'],
+        ['group' => 'Manage', 'route' => 'admin.notifications.index', 'label' => 'Notifications', 'pattern' => 'admin/notifications*',
+         'icon' => 'M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0'],
         ['group' => 'Manage', 'route' => 'admin.activity.index', 'label' => 'User Activity', 'pattern' => 'admin/activity*',
          'icon' => 'M12 8v4l3 3M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5'],
         ['group' => 'Manage', 'route' => 'admin.settings.index', 'label' => 'Settings', 'pattern' => 'admin/settings*',

@@ -17,6 +17,13 @@
 
     // Only records for this side count as "already recorded" here.
     $sideRecords = $openRecords->where('kind', $kind);
+
+    // A "Send WhatsApp" button on a channel that cannot send would only ever
+    // produce an error, so it is not offered.
+    $notifyReady = [
+        'whatsapp' => App\Support\NotificationConfig::ready('whatsapp'),
+        'email' => App\Support\NotificationConfig::ready('email'),
+    ];
 @endphp
 
 @if (empty($transfers))
@@ -68,6 +75,21 @@
                                 &middot; {{ $existing->attachments->count() }} file(s)
                             @endif
                         </button>
+
+                        {{-- Manual nudge on the channel of choice. Overrides
+                             the partner's preference switches, since an admin
+                             asking for this has decided. --}}
+                        @foreach (['whatsapp' => 'WhatsApp', 'email' => 'Email'] as $sendChannel => $sendLabel)
+                            @if ($notifyReady[$sendChannel] ?? false)
+                                <form method="POST" action="{{ route('admin.settlements.notify', $existing) }}">
+                                    @csrf
+                                    <input type="hidden" name="channel" value="{{ $sendChannel }}">
+                                    <button type="submit" class="btn btn--sm" data-busy="Sending...">
+                                        Send {{ $sendLabel }}
+                                    </button>
+                                </form>
+                            @endif
+                        @endforeach
 
                         <form method="POST" action="{{ route('admin.settlements.paid', $existing) }}">
                             @csrf

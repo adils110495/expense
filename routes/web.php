@@ -4,12 +4,14 @@ use App\Http\Controllers\Admin\AssignmentController;
 use App\Http\Controllers\Admin\AttachmentController;
 use App\Http\Controllers\Admin\AuthController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\ChannelSettingsController;
 use App\Http\Controllers\Admin\CompanyController;
 use App\Http\Controllers\Admin\CreditController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\ExpenseController;
 use App\Http\Controllers\Admin\ExportController;
 use App\Http\Controllers\Admin\HierarchyController;
+use App\Http\Controllers\Admin\NotificationController;
 use App\Http\Controllers\Admin\PaymentByController;
 use App\Http\Controllers\Admin\PersonController;
 use App\Http\Controllers\Admin\ProjectController;
@@ -18,6 +20,7 @@ use App\Http\Controllers\Admin\UserActivityController;
 use App\Http\Controllers\Admin\ReportController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\TransactionController;
+use App\Http\Controllers\WebhookController;
 use Illuminate\Support\Facades\Route;
 
 // Both the site root and the bare panel root land on the dashboard. Every
@@ -27,6 +30,15 @@ use Illuminate\Support\Facades\Route;
 // gets the dashboard, anyone else is sent to the login screen.
 Route::redirect('/', '/admin/dashboard');
 Route::redirect('/admin', '/admin/dashboard');
+
+// Delivery callbacks. Public by necessity - the providers have no session -
+// and rate limited, because they are the only unauthenticated write path in
+// the application. Each verifies a shared secret of its own.
+Route::middleware('throttle:120,1')->prefix('webhooks')->name('admin.webhooks.')->group(function () {
+    Route::get('whatsapp', [WebhookController::class, 'verifyWhatsApp'])->name('whatsapp');
+    Route::post('whatsapp', [WebhookController::class, 'whatsapp'])->name('whatsapp.receive');
+    Route::post('email/{secret}', [WebhookController::class, 'email'])->name('email');
+});
 
 Route::prefix('admin')->name('admin.')->group(function () {
     // Guests only - an authenticated admin hitting /admin/login goes to the dashboard.
@@ -112,6 +124,48 @@ Route::prefix('admin')->name('admin.')->group(function () {
         // Read only on purpose - the activity log has an index and nothing
         // else, so there is no route by which an entry could be changed.
         Route::get('activity', [UserActivityController::class, 'index'])->name('activity.index');
+
+        /* ---------- Notifications ---------- */
+
+        Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
+        Route::post('notifications/{log}/retry', [NotificationController::class, 'retry'])->name('notifications.retry');
+        Route::post('notifications/{log}/cancel', [NotificationController::class, 'cancel'])->name('notifications.cancel');
+        Route::post('notifications/remind-all', [NotificationController::class, 'remindAll'])->name('notifications.remind');
+
+        // Manual and bulk sends live with the settlement they are about.
+        Route::post('settlements/{settlement}/notify', [SettlementController::class, 'notify'])
+            ->name('settlements.notify');
+        Route::post('projects/{project}/settlement/remind', [SettlementController::class, 'remindAll'])
+            ->name('projects.settlement.remind');
+
+        /* ---------- Channel settings ---------- */
+
+        Route::prefix('settings')->name('settings.')->group(function () {
+            Route::get('whatsapp', [ChannelSettingsController::class, 'whatsapp'])->name('whatsapp');
+            Route::put('whatsapp', [ChannelSettingsController::class, 'updateWhatsApp'])->name('whatsapp.update');
+            Route::post('whatsapp/forget', [ChannelSettingsController::class, 'forgetWhatsAppSecret'])
+                ->name('whatsapp.forget');
+            // Rate limited: these reach out to a third party, and a held-down
+            // button should not turn into a burst of provider requests.
+            Route::post('whatsapp/test', [ChannelSettingsController::class, 'testWhatsApp'])
+                ->middleware('throttle:10,1')->name('whatsapp.test');
+            Route::post('whatsapp/send-test', [ChannelSettingsController::class, 'sendTestWhatsApp'])
+                ->middleware('throttle:10,1')->name('whatsapp.send');
+
+            Route::get('email', [ChannelSettingsController::class, 'email'])->name('email');
+            Route::put('email', [ChannelSettingsController::class, 'updateEmail'])->name('email.update');
+            Route::post('email/forget', [ChannelSettingsController::class, 'forgetEmailSecret'])->name('email.forget');
+            Route::post('email/test', [ChannelSettingsController::class, 'testEmail'])
+                ->middleware('throttle:10,1')->name('email.test');
+            Route::post('email/send-test', [ChannelSettingsController::class, 'sendTestEmail'])
+                ->middleware('throttle:10,1')->name('email.send');
+
+            Route::get('templates', [ChannelSettingsController::class, 'templates'])->name('templates');
+            Route::put('templates/{template}', [ChannelSettingsController::class, 'updateTemplate'])
+                ->name('templates.update');
+            Route::put('notification-switches', [ChannelSettingsController::class, 'updateGlobals'])
+                ->name('templates.globals');
+        });
 
         Route::get('settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::put('settings/profile', [SettingsController::class, 'updateProfile'])->name('settings.profile');

@@ -29,6 +29,19 @@ class PersonRequest extends FormRequest
                     ->ignore($person?->id),
             ],
             'phone' => ['nullable', 'string', 'max:30'],
+
+            // Loose on format, strict on content: numbers get written with
+            // spaces, dashes and a +, and WhatsAppService normalises them at
+            // send time. What matters is that there are enough digits.
+            'whatsapp_number' => ['nullable', 'string', 'max:30', 'regex:/^[\d\s+()-]{10,}$/'],
+            'whatsapp_enabled' => ['required', 'boolean'],
+            'email_enabled' => ['required', 'boolean'],
+
+            // Per-channel, per-type switches from the notification block.
+            'prefs' => ['nullable', 'array'],
+            'prefs.*' => ['array'],
+            'prefs.*.*' => ['boolean'],
+
             'designation' => ['nullable', 'string', 'max:100'],
             'status' => ['required', 'boolean'],
             'notes' => ['nullable', 'string', 'max:2000'],
@@ -44,6 +57,7 @@ class PersonRequest extends FormRequest
     {
         return [
             'email.unique' => 'Another person already uses this email address.',
+            'whatsapp_number.regex' => 'The WhatsApp number needs at least 10 digits.',
         ];
     }
 

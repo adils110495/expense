@@ -62,6 +62,16 @@
                         </div>
 
                         <div class="field col-md-3 col-lg-3 col-sm-12 col-xs-12">
+                            <label for="whatsapp_number">WhatsApp Number</label>
+                            <input id="whatsapp_number" name="whatsapp_number" type="tel" maxlength="30"
+                                   class="input @error('whatsapp_number') input--error @enderror"
+                                   placeholder="+91 90000 00000"
+                                   value="{{ old('whatsapp_number', $person->whatsapp_number) }}">
+                            <x-field-error name="whatsapp_number"/>
+                            <span class="hint">Falls back to the phone number if left empty.</span>
+                        </div>
+
+                        <div class="field col-md-3 col-lg-3 col-sm-12 col-xs-12">
                             <label for="designation">Designation</label>
                             <input id="designation" name="designation" type="text" maxlength="100"
                                    class="input @error('designation') input--error @enderror"
@@ -88,6 +98,64 @@
                             <x-field-error name="notes"/>
                         </div>
                     </div>
+                </div>
+
+                {{-- Notification preferences. Anything left ticked is on; the
+                     global switches in Settings sit above these, so turning a
+                     type off there silences it for everyone regardless. --}}
+                <div class="card__body" style="border-top:1px solid var(--border);">
+                    <h3 style="margin-bottom:10px;">Notifications</h3>
+
+                    <div class="row">
+                        <div class="field field--check col-md-3 col-lg-3 col-sm-12 col-xs-12">
+                            <input type="hidden" name="whatsapp_enabled" value="0">
+                            <label class="check">
+                                <input type="checkbox" name="whatsapp_enabled" value="1"
+                                       @checked(old('whatsapp_enabled', $person->whatsapp_enabled ?? true))>
+                                Send WhatsApp messages
+                            </label>
+                        </div>
+
+                        <div class="field field--check col-md-3 col-lg-3 col-sm-12 col-xs-12">
+                            <input type="hidden" name="email_enabled" value="0">
+                            <label class="check">
+                                <input type="checkbox" name="email_enabled" value="1"
+                                       @checked(old('email_enabled', $person->email_enabled ?? true))>
+                                Send emails
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="grid grid--halves">
+                        @foreach (['whatsapp' => 'WhatsApp', 'email' => 'Email'] as $channel => $channelLabel)
+                            <div>
+                                <div class="sidebar__label" style="padding-left:0;">{{ $channelLabel }}</div>
+                                <div class="row">
+                                    @foreach (App\Models\Person::NOTIFICATION_GROUPS as $group => $groupLabel)
+                                        @php
+                                            $current = old(
+                                                'prefs.'.$channel.'.'.$group,
+                                                $person->notification_prefs[$channel][$group] ?? true,
+                                            );
+                                        @endphp
+                                        <div class="field field--check col-md-6 col-lg-6 col-sm-12 col-xs-12">
+                                            <input type="hidden" name="prefs[{{ $channel }}][{{ $group }}]" value="0">
+                                            <label class="check">
+                                                <input type="checkbox" name="prefs[{{ $channel }}][{{ $group }}]"
+                                                       value="1" @checked($current)>
+                                                {{ $groupLabel }}
+                                            </label>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    <p class="hint" style="margin:0;">
+                        A partner is only messaged when the channel is on for them, the type is
+                        ticked, and there is a number or address to send to.
+                    </p>
                 </div>
 
                 {{-- Project assignments. A person may be on several projects,

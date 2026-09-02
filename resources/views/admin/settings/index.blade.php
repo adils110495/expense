@@ -8,6 +8,7 @@
 
 @section('content')
     <div class="stack">
+        @include('admin.partials.settings-tabs', ['active' => 'general'])
 
         {{-- Profile --}}
         <div class="card">

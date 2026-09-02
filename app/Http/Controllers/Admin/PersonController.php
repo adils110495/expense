@@ -52,7 +52,7 @@ class PersonController extends Controller
 
     public function store(PersonRequest $request): RedirectResponse
     {
-        $person = Person::create($request->safe()->except('projects'));
+        $person = Person::create($this->attributes($request));
 
         $person->projects()->sync($request->input('projects', []));
 
@@ -114,7 +114,7 @@ class PersonController extends Controller
 
     public function update(PersonRequest $request, Person $person): RedirectResponse
     {
-        $person->update($request->safe()->except('projects'));
+        $person->update($this->attributes($request));
 
         $this->syncProjects($person, $request->input('projects', []));
 
@@ -155,6 +155,30 @@ class PersonController extends Controller
 
         return redirect()->route('admin.people.index')
             ->with('success', 'Person deleted successfully.');
+    }
+
+    /**
+     * The person's own columns, with the notification tick boxes folded into
+     * the JSON column they are stored in.
+     *
+     * `prefs` arrives as prefs[channel][group] from the form; it is not a
+     * column, so it never reaches the model under that name.
+     */
+    private function attributes(PersonRequest $request): array
+    {
+        $data = $request->safe()->except(['projects', 'prefs']);
+
+        $prefs = $request->input('prefs');
+
+        if (is_array($prefs)) {
+            // Cast to real booleans - the hidden-input pattern posts "0"/"1"
+            // strings, and a string "0" is truthy once it is read back out.
+            $data['notification_prefs'] = collect($prefs)
+                ->map(fn ($groups) => collect($groups)->map(fn ($on) => (bool) $on)->all())
+                ->all();
+        }
+
+        return $data;
     }
 
     /**

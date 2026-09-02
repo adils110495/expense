@@ -42,7 +42,18 @@
         <div class="card">
             <div class="card__head">
                 <h2>Settlement period</h2>
-                <span class="badge badge--muted">{{ $range->label() }}</span>
+                <div class="btn-row">
+                    <span class="badge badge--muted">{{ $range->label() }}</span>
+                    @if (App\Support\NotificationConfig::ready('whatsapp') || App\Support\NotificationConfig::ready('email'))
+                        <form method="POST" action="{{ route('admin.projects.settlement.remind', $project) }}"
+                              data-confirm="Send every partner on this project their own settlement reminder?">
+                            @csrf
+                            <button type="submit" class="btn btn--sm" data-busy="Queueing...">
+                                Remind everyone
+                            </button>
+                        </form>
+                    @endif
+                </div>
             </div>
             <div class="card__body">
                 @include('admin.partials.range-filter', [

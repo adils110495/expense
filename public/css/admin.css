@@ -880,6 +880,51 @@ th.sortable .arrow { color: var(--brand); }
 .tab--active { background: var(--brand); color: #fff; }
 .tab--active:hover { background: var(--brand-dark); color: #fff; }
 
+/* ==========================================================================
+   Notifications
+   ========================================================================== */
+
+/* The variable reference above the template editors. */
+.var-list { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.var {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 7px;
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: #f8fafc;
+    font-size: .8rem;
+    max-width: 100%;
+}
+.var code {
+    font-size: .78rem;
+    color: var(--brand);
+    font-weight: 650;
+    white-space: nowrap;
+}
+
+/* One template editor. Sits inside a halves grid, so it needs to own its
+   own spacing rather than relying on a card body. */
+.tpl {
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+}
+.tpl__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.tpl .field { margin-bottom: 0; }
+.tpl .textarea { min-height: 150px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: .82rem; }
+
 /* Agreed / paid / still to pay, above the payment form. */
 .pay-progress {
     display: flex;

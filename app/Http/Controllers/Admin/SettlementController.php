@@ -8,14 +8,18 @@ use App\Models\Attachment;
 use App\Models\Project;
 use App\Models\Setting;
 use App\Models\Settlement;
+use App\Services\Notifications\NotificationDispatcher;
 use App\Services\SettlementEngine;
 use App\Support\DateRange;
+use App\Support\NotificationConfig;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class SettlementController extends Controller
 {
+    public function __construct(private readonly NotificationDispatcher $notifications) {}
+
     /**
      * A project's settlement: the equal share, every partner's position, and
      * the exact list of who pays whom.
@@ -105,9 +109,17 @@ class SettlementController extends Controller
 
     public function update(SettlementRequest $request, Settlement $settlement): RedirectResponse
     {
+        $wasPaid = $settlement->status === 'paid';
+
         $settlement->update($this->normalise($request->validated()));
 
         $this->syncAttachments($request, $settlement);
+
+        // Only on the transition into paid, so editing a note on an already
+        // settled payment does not tell everyone about it again.
+        if (! $wasPaid && $settlement->status === 'paid') {
+            $this->notifications->settlementPaid($settlement);
+        }
 
         return back()->with('success', 'Settlement updated.');
     }
@@ -157,7 +169,53 @@ class SettlementController extends Controller
             'settled_on' => $settlement->settled_on ?? now()->toDateString(),
         ]);
 
+        $this->notifications->settlementPaid($settlement);
+
         return back()->with('success', 'Settlement marked as paid.');
+    }
+
+    /**
+     * Sends one partner their settlement reminder on demand, on the channel
+     * the admin picked. Preference switches are overridden - an admin asking
+     * for this has decided - but a partner with no number or address on that
+     * channel still cannot be reached.
+     */
+    public function notify(Request $request, Settlement $settlement): RedirectResponse
+    {
+        $channel = $request->input('channel');
+
+        if (! in_array($channel, ['whatsapp', 'email'], true)) {
+            return back()->with('error', 'Choose WhatsApp or email.');
+        }
+
+        if (! NotificationConfig::ready($channel)) {
+            return back()->with('error', ucfirst($channel).' is not switched on and configured yet.');
+        }
+
+        $sent = $this->notifications->manualSettlement($settlement, $channel);
+
+        return $sent
+            ? back()->with('success', 'Queued a '.$channel.' message to '.$settlement->from?->name.'.')
+            : back()->with('error', $settlement->from?->name.' has no usable '.$channel.' contact.');
+    }
+
+    /**
+     * Reminds everyone on a project who owes or is owed.
+     *
+     * Each message is built for its recipient from the current plan, so no
+     * one is sent another partner's figures.
+     */
+    public function remindAll(Project $project): RedirectResponse
+    {
+        if (! NotificationConfig::ready('whatsapp') && ! NotificationConfig::ready('email')) {
+            return back()->with('error', 'Neither WhatsApp nor email is configured yet.');
+        }
+
+        $queued = $this->notifications->settlementReminders($project, force: true);
+
+        return $queued > 0
+            ? back()->with('success', 'Queued '.$queued.' settlement reminder(s).')
+            : back()->with('error', 'Nothing to remind anyone about, or nobody has a usable contact.');
     }
 
     public function destroy(Settlement $settlement): RedirectResponse

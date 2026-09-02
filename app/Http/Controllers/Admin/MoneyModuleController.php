@@ -8,6 +8,7 @@ use App\Models\Attachment;
 use App\Models\Category;
 use App\Models\PaymentBy;
 use App\Models\Transaction;
+use App\Services\Notifications\NotificationDispatcher;
 use App\Support\DateRange;
 use App\Support\HierarchyOptions;
 use Illuminate\Http\RedirectResponse;
@@ -36,6 +37,8 @@ abstract class MoneyModuleController extends Controller
     protected string $payerLabel = 'Payment By';
 
     protected const SORTABLE = ['transaction_date', 'amount', 'title', 'created_at'];
+
+    public function __construct(protected readonly NotificationDispatcher $notifications) {}
 
     public function index(Request $request): View
     {
@@ -124,6 +127,10 @@ abstract class MoneyModuleController extends Controller
 
         $this->syncAttachments($request, $transaction);
 
+        // After the write, never before: a notification about a record that
+        // then failed to save would be a lie. Nothing this call does can throw.
+        $this->notifications->transactionCreated($transaction);
+
         return redirect()->route($this->routeName.'.index')
             ->with('success', $this->label.' saved successfully.');
     }
@@ -166,9 +173,14 @@ abstract class MoneyModuleController extends Controller
     {
         $this->guardType($transaction);
 
+        // Read before the update, so the notification can say what changed.
+        $previousAmount = (string) $transaction->amount;
+
         $transaction->update($this->attributes($request));
 
         $this->syncAttachments($request, $transaction);
+
+        $this->notifications->transactionUpdated($transaction, $previousAmount);
 
         return redirect()->route($this->routeName.'.index')
             ->with('success', $this->label.' updated successfully.');
@@ -226,6 +238,9 @@ abstract class MoneyModuleController extends Controller
         // out of every list and total but stays in the database. Attachments
         // are deliberately left on disk - they would be needed on a restore.
         $transaction->delete();
+
+        // Only once the delete has committed.
+        $this->notifications->transactionDeleted($transaction);
 
         return redirect()->route($this->routeName.'.index')
             ->with('success', $this->label.' deleted successfully.');
