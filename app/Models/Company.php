@@ -3,8 +3,11 @@
 namespace App\Models;
 
 use App\Models\Concerns\LogsActivity;
+use App\Models\Contracts\CompanyScoped;
+use App\Support\CompanyAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
@@ -17,11 +20,16 @@ use Illuminate\Support\Facades\DB;
  * edited or deleted transaction is reflected immediately and nothing can
  * drift out of step.
  */
-class Company extends Model
+class Company extends Model implements CompanyScoped
 {
     use SoftDeletes, LogsActivity;
 
     protected $fillable = ['name', 'description', 'status'];
+
+    public function accessibleToCurrentActor(): bool
+    {
+        return CompanyAccess::allows($this->id);
+    }
 
     protected function casts(): array
     {
@@ -38,9 +46,35 @@ class Company extends Model
         return $this->hasMany(Transaction::class);
     }
 
+    /**
+     * The panel users mapped to this company. Admins are not listed here -
+     * they reach every company without a mapping.
+     */
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'user_company')
+            ->withTimestamps()
+            ->orderBy('users.name');
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('status', true);
+    }
+
+    /**
+     * Narrows to the companies the signed-in actor may see.
+     *
+     * Null means "no restriction" - that is an admin, and only CompanyAccess
+     * is allowed to decide it. Passing an empty array narrows to nothing,
+     * which is the correct result for a user mapped to no company at all:
+     * failing closed matters more here than showing something.
+     *
+     * @param  int[]|null  $companyIds
+     */
+    public function scopeForCompanies(Builder $query, ?array $companyIds): Builder
+    {
+        return $companyIds === null ? $query : $query->whereIn('companies.id', $companyIds);
     }
 
     public function scopeSearch(Builder $query, ?string $term): Builder

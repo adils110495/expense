@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Transaction;
+use App\Support\CompanyAccess;
 use App\Support\DateRange;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
@@ -12,6 +13,10 @@ use Illuminate\Support\Facades\DB;
  * Single source of truth for every financial total in the app. Balance is
  * always derived from transaction rows - no stored running total exists,
  * so edits and deletes stay consistent automatically.
+ *
+ * It is also where the company boundary meets the money: query() is the base
+ * every dashboard figure, chart and report total is built on, so restricting
+ * it here restricts all of them at once rather than one screen at a time.
  */
 class FinanceReport
 {
@@ -19,7 +24,12 @@ class FinanceReport
 
     public function query(): Builder
     {
-        return Transaction::query()->between($this->range->from, $this->range->to);
+        return Transaction::query()
+            // Before the date range and before anything a caller adds: no
+            // total on any screen can include a company the actor is not
+            // mapped to, whatever else is stacked on top.
+            ->forCompanies(CompanyAccess::scopeIds())
+            ->between($this->range->from, $this->range->to);
     }
 
     /**

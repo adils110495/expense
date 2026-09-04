@@ -36,7 +36,7 @@
             <div class="card__head">
                 <h2>Filter {{ Str::lower($plural) }}</h2>
                 <div class="btn-row">
-                    <a href="{{ route($routeName.'.create') }}" class="btn btn--primary">+ Add {{ $label }}</a>
+                    <a href="{{ route('admin.transactions.create', ['type' => $type]) }}" class="btn btn--primary">+ Add {{ $label }}</a>
                 </div>
             </div>
 
@@ -76,20 +76,18 @@
                         </select>
                     </div>
 
-                    @if ($extras)
-                        <div class="field col-md-3 col-lg-3 col-sm-12 col-xs-12">
-                            <label for="payment_by_id">{{ $payerLabel }}</label>
-                            <select id="payment_by_id" name="payment_by_id" class="select">
-                                <option value="">All</option>
-                                @foreach ($payers as $payer)
-                                    <option value="{{ $payer->id }}"
-                                            @selected(request('payment_by_id') == $payer->id)>
-                                        {{ $payer->name }}@unless ($payer->status) (inactive)@endunless
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-                    @endif
+                    <div class="field col-md-3 col-lg-3 col-sm-12 col-xs-12">
+                        <label for="payment_by_id">{{ $payerLabel }}</label>
+                        <select id="payment_by_id" name="payment_by_id" class="select">
+                            <option value="">All</option>
+                            @foreach ($payers as $payer)
+                                <option value="{{ $payer->id }}"
+                                        @selected(request('payment_by_id') == $payer->id)>
+                                    {{ $payer->name }}@unless ($payer->status) (inactive)@endunless
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
 
                     <div class="field col-md-3 col-lg-3 col-sm-12 col-xs-12">
                         <label for="range">Period</label>
@@ -130,7 +128,7 @@
                     :message="request()->hasAny(['q', 'company_id', 'project_id', 'person_id', 'category_id', 'payment_method', 'payment_by_id']) || $range->preset !== 'all'
                         ? 'No records match the current filters. Try widening the period or clearing the search.'
                         : 'Nothing has been recorded yet.'"
-                    :action="route($routeName.'.create')"
+                    :action="route('admin.transactions.create', ['type' => $type])"
                     :action-label="'+ Add '.$label"/>
             @else
                 <div class="card__body card__body--flush">
@@ -153,9 +151,7 @@
                                     'url' => route($routeName.'.index'), 'carry' => $carry,
                                 ])
                                 <th>Payment Method</th>
-                                @if ($extras)
-                                    <th>{{ $payerLabel }}</th>
-                                @endif
+                                <th>{{ $payerLabel }}</th>
                                 <th class="right">Actions</th>
                             </tr>
                             </thead>
@@ -175,14 +171,12 @@
                                     <td>{{ $row->category?->name ?? '--' }}</td>
                                     <td class="num amount--{{ $row->type }}">{{ Money::format($row->amount) }}</td>
                                     <td class="nowrap">{{ $row->payment_method_label }}</td>
-                                    @if ($extras)
-                                        <td>{{ $row->paymentBy?->name ?? '--' }}</td>
-                                    @endif
+                                    <td>{{ $row->paymentBy?->name ?? '--' }}</td>
                                     <td>
                                         <div class="actions">
-                                            <a href="{{ route($routeName.'.show', $row) }}" class="btn btn--sm">View</a>
-                                            <a href="{{ route($routeName.'.edit', $row) }}" class="btn btn--sm">Edit</a>
-                                            <form method="POST" action="{{ route($routeName.'.destroy', $row) }}"
+                                            <a href="{{ route('admin.transactions.show', $row) }}" class="btn btn--sm">View</a>
+                                            <a href="{{ route('admin.transactions.edit', $row) }}" class="btn btn--sm">Edit</a>
+                                            <form method="POST" action="{{ route('admin.transactions.destroy', $row) }}"
                                                   data-confirm="Are you sure you want to delete this {{ Str::lower($label) }}?">
                                                 @csrf
                                                 @method('DELETE')

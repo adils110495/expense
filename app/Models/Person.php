@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Models\Concerns\LogsActivity;
+use App\Models\Contracts\CompanyScoped;
+use App\Support\CompanyAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -14,12 +16,26 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * assigned to one or many through the project_person pivot, so the same
  * person can carry credits and expenses across several projects.
  */
-class Person extends Model
+class Person extends Model implements CompanyScoped
 {
     use SoftDeletes, LogsActivity;
 
     // Eloquent would look for a "persons" table.
     protected $table = 'people';
+
+    /**
+     * Mirrors scopeForCompanies: reachable through any project assignment in
+     * one of your companies, and reachable by everyone while unassigned.
+     */
+    public function accessibleToCurrentActor(): bool
+    {
+        $companyIds = $this->projects()
+            ->pluck('projects.company_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        return $companyIds === [] || CompanyAccess::allowsAny($companyIds);
+    }
 
     protected $fillable = [
         'name', 'email', 'phone', 'designation', 'status', 'notes',
@@ -58,6 +74,28 @@ class Person extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('status', true);
+    }
+
+    /**
+     * Narrows to the people the signed-in actor may see.
+     *
+     * People carry no company of their own, so the boundary is drawn through
+     * their project assignments: you can see someone if they work on one of
+     * your companies' projects. Somebody assigned to nothing yet is visible to
+     * everyone - they hold no company's data, and hiding them would make it
+     * impossible to put a newly added person onto your own project.
+     *
+     * @param  int[]|null  $companyIds  Null for an admin: no restriction.
+     */
+    public function scopeForCompanies(Builder $query, ?array $companyIds): Builder
+    {
+        if ($companyIds === null) {
+            return $query;
+        }
+
+        return $query->where(fn (Builder $q) => $q
+            ->whereHas('projects', fn (Builder $p) => $p->whereIn('projects.company_id', $companyIds))
+            ->orWhereDoesntHave('projects'));
     }
 
     /** People assigned to a given project - the source for the person dropdown. */

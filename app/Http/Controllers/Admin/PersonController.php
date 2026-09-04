@@ -11,6 +11,7 @@ use App\Models\Transaction;
 use App\Services\FinanceReport;
 use App\Services\HierarchyReport;
 use App\Services\SettlementEngine;
+use App\Support\CompanyAccess;
 use App\Support\DateRange;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -23,6 +24,7 @@ class PersonController extends Controller
         $range = DateRange::fromRequest($request, 'all');
 
         $people = Person::query()
+            ->forCompanies(CompanyAccess::scopeIds())
             ->search($request->query('q'))
             ->onProject($request->query('project_id'))
             ->when($request->filled('status'), fn ($q) => $q->where('status', (bool) $request->query('status')))
@@ -35,7 +37,8 @@ class PersonController extends Controller
         return view('admin.people.index', [
             'people' => $people,
             'totals' => HierarchyReport::forRange($range->from, $range->to)->totalsBy('person_id'),
-            'projects' => Project::with('company')->orderBy('name')->get(),
+            'projects' => Project::forCompanies(CompanyAccess::allowedIds())
+                ->with('company')->orderBy('name')->get(),
             'range' => $range,
         ]);
     }
@@ -44,7 +47,7 @@ class PersonController extends Controller
     {
         return view('admin.people.form', [
             'person' => new Person(['status' => true]),
-            'projects' => Project::active()->with('company')->orderBy('name')->get(),
+            'projects' => Project::active()->forCompanies(CompanyAccess::allowedIds())->with('company')->orderBy('name')->get(),
             // Pre-ticked when you arrive from a project's "add person" link.
             'assigned' => array_filter([$request->integer('project_id')]),
         ]);
@@ -68,11 +71,19 @@ class PersonController extends Controller
     {
         $range = DateRange::fromRequest($request, 'all');
 
+        // Scoped as well as narrowed to the person. Someone can work on two
+        // companies' projects at once, and reaching their page through the one
+        // company you are mapped to must not lay out their money on the other.
         $base = Transaction::query()
+            ->forCompanies(CompanyAccess::scopeIds())
             ->between($range->from, $range->to)
             ->where('person_id', $person->id);
 
-        $person->load('projects.company');
+        // For the same reason, the projects listed beside them are only the
+        // ones inside the actor's companies.
+        $person->load([
+            'projects' => fn ($q) => $q->forCompanies(CompanyAccess::allowedIds())->with('company'),
+        ]);
 
         // Per-project balance for this one person, from the same grouped query
         // the rest of the hierarchy uses.
@@ -101,6 +112,7 @@ class PersonController extends Controller
         return view('admin.people.form', [
             'person' => $person,
             'projects' => Project::query()
+                ->forCompanies(CompanyAccess::allowedIds())
                 // Keep any project already assigned in the list even once it
                 // is deactivated, so saving cannot silently unassign it.
                 ->where(fn ($q) => $q->where('status', true)
@@ -196,7 +208,8 @@ class PersonController extends Controller
             return [];
         }
 
-        $projects = Project::with('company')->whereIn('id', $projectIds)->orderBy('name')->get();
+        $projects = Project::forCompanies(CompanyAccess::allowedIds())
+            ->with('company')->whereIn('id', $projectIds)->orderBy('name')->get();
 
         $rows = [];
 

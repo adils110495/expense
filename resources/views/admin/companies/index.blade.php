@@ -18,7 +18,9 @@
             <div class="card__head">
                 <h2>Filter companies</h2>
                 <div class="btn-row">
-                    <a href="{{ route('admin.companies.create') }}" class="btn btn--primary">+ Add Company</a>
+                    @admin
+                        <a href="{{ route('admin.companies.create') }}" class="btn btn--primary">+ Add Company</a>
+                    @endadmin
                 </div>
             </div>
 

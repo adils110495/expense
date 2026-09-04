@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Models\Concerns\LogsActivity;
+use App\Models\Contracts\CompanyScoped;
+use App\Support\CompanyAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -10,11 +12,17 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Transaction extends Model
+class Transaction extends Model implements CompanyScoped
 {
     use HasFactory, SoftDeletes, LogsActivity;
 
     public const TYPES = ['expense', 'credit'];
+
+    /** An unfiled row - company_id still null - is an admin's to deal with. */
+    public function accessibleToCurrentActor(): bool
+    {
+        return CompanyAccess::allows($this->company_id);
+    }
 
     public const PAYMENT_METHODS = [
         'cash' => 'Cash',
@@ -83,6 +91,21 @@ class Transaction extends Model
     public function scopeOfType(Builder $query, ?string $type): Builder
     {
         return $type ? $query->where('type', $type) : $query;
+    }
+
+    /**
+     * Narrows to the companies the signed-in actor may see.
+     *
+     * whereIn drops rows whose company_id is NULL, and that is deliberate: an
+     * unfiled transaction belongs to no company, so nobody working under a
+     * company restriction has any business seeing it. An admin, who passes
+     * null here, still sees them - and the bulk assign screen is theirs.
+     *
+     * @param  int[]|null  $companyIds
+     */
+    public function scopeForCompanies(Builder $query, ?array $companyIds): Builder
+    {
+        return $companyIds === null ? $query : $query->whereIn('transactions.company_id', $companyIds);
     }
 
     public function scopeBetween(Builder $query, ?string $from, ?string $to): Builder

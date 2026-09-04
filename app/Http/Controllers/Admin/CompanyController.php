@@ -10,6 +10,7 @@ use App\Models\Transaction;
 use App\Services\FinanceReport;
 use App\Services\HierarchyReport;
 use App\Services\SettlementEngine;
+use App\Support\CompanyAccess;
 use App\Support\DateRange;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class CompanyController extends Controller
         $range = DateRange::fromRequest($request, 'all');
 
         $companies = Company::query()
+            ->forCompanies(CompanyAccess::scopeIds())
             ->search($request->query('q'))
             ->when($request->filled('status'), fn ($q) => $q->where('status', (bool) $request->query('status')))
             ->withCount(['projects', 'transactions'])
@@ -87,6 +89,10 @@ class CompanyController extends Controller
             'settlementTotal' => array_sum(array_column($plans, 'to_settle')),
             'peopleCount' => Company::peopleCounts([$company->id])[$company->id] ?? 0,
             'tree' => $report->tree($company->id),
+            // Who can see this company. Only an admin can act on the list, but
+            // showing it to a mapped user answers "who else is in here" without
+            // giving anything else away.
+            'mappedUsers' => $company->users()->get(['users.id', 'users.name', 'users.email', 'users.status']),
             'recent' => (clone $base)
                 ->with(['category', 'project', 'person'])
                 ->orderByDesc('transaction_date')

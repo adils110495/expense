@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin\Concerns;
 
+use App\Support\CompanyAccess;
 use Illuminate\Validation\Rule;
 
 /**
@@ -37,6 +38,20 @@ trait ValidatesHierarchy
             $project->where('status', true);
         }
 
+        // The authorisation half, and the reason a hand-built POST cannot file
+        // money into a company the actor is not mapped to. The form only ever
+        // offers their own companies, but an option list is not a guard - this
+        // is. Null means an admin, who is restricted to nothing.
+        //
+        // Only the company needs it: the project is already required to belong
+        // to that company, and the person to be assigned to that project, so
+        // pinning the top of the chain pins all three.
+        $allowed = CompanyAccess::allowedIds();
+
+        if ($allowed !== null) {
+            $company->whereIn('id', $allowed ?: [0]);
+        }
+
         return [
             'company_id' => ['required', $company],
 
@@ -58,7 +73,9 @@ trait ValidatesHierarchy
     {
         return [
             'company_id.required' => 'Please choose the company this '.$subject.' belongs to.',
-            'company_id.exists' => 'Please choose an active company.',
+            // Covers both "no such company" and "not one of yours" - which
+            // company exists but is out of reach is not worth telling anyone.
+            'company_id.exists' => 'Please choose an active company you have access to.',
             'project_id.required' => 'Please choose a project.',
             'project_id.exists' => 'Please choose a project that belongs to the selected company.',
             'person_id.required' => 'Please choose the person this '.$subject.' belongs to.',

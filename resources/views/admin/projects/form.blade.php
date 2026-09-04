@@ -22,9 +22,14 @@
     <div class="stack">
         @if ($companies->isEmpty())
             <div class="alert alert--warn">
-                There are no active companies yet.
-                <a href="{{ route('admin.companies.create') }}">Add one first</a> -
-                a project must belong to a company.
+                @admin
+                    There are no active companies yet.
+                    <a href="{{ route('admin.companies.create') }}">Add one first</a> -
+                    a project must belong to a company.
+                @else
+                    You are not mapped to any company yet, and a project must belong to one.
+                    Ask an administrator for access.
+                @endadmin
             </div>
         @endif
 

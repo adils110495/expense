@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Models\Concerns\LogsActivity;
+use App\Models\Contracts\CompanyScoped;
+use App\Support\CompanyAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,9 +19,15 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * that actually moved, which the engine subtracts so the same debt is not
  * suggested twice.
  */
-class Settlement extends Model
+class Settlement extends Model implements CompanyScoped
 {
     use SoftDeletes, LogsActivity;
+
+    /** A settlement inherits its company from the project it settles. */
+    public function accessibleToCurrentActor(): bool
+    {
+        return CompanyAccess::allows($this->project?->company_id);
+    }
 
     public const STATUSES = [
         'pending' => 'Pending',
@@ -114,5 +122,20 @@ class Settlement extends Model
     public function scopeOfProject(Builder $query, mixed $projectId): Builder
     {
         return $projectId ? $query->where('project_id', $projectId) : $query;
+    }
+
+    /**
+     * Narrows to the companies the signed-in actor may see. A settlement has
+     * no company of its own; it inherits the one on its project.
+     *
+     * @param  int[]|null  $companyIds  Null for an admin: no restriction.
+     */
+    public function scopeForCompanies(Builder $query, ?array $companyIds): Builder
+    {
+        if ($companyIds === null) {
+            return $query;
+        }
+
+        return $query->whereHas('project', fn (Builder $p) => $p->whereIn('projects.company_id', $companyIds));
     }
 }

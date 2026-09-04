@@ -9,6 +9,7 @@ use App\Models\Project;
 use App\Models\Setting;
 use App\Models\Settlement;
 use App\Services\SettlementEngine;
+use App\Support\CompanyAccess;
 use App\Support\DateRange;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -53,6 +54,7 @@ class SettlementController extends Controller
     public function index(Request $request): View
     {
         $settlements = Settlement::query()
+            ->forCompanies(CompanyAccess::scopeIds())
             ->ofProject($request->query('project_id'))
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->query('status')))
             ->when($request->filled('person_id'), fn ($q) => $q->where(function ($w) use ($request) {
@@ -66,7 +68,8 @@ class SettlementController extends Controller
 
         return view('admin.settlements.index', [
             'settlements' => $settlements,
-            'projects' => Project::with('company')->orderBy('name')->get(),
+            'projects' => Project::forCompanies(CompanyAccess::allowedIds())
+                ->with('company')->orderBy('name')->get(),
             'dateFormat' => Setting::get('date_format') ?? 'd M Y',
         ]);
     }
@@ -95,7 +98,10 @@ class SettlementController extends Controller
             'from_person_id' => $data['from_person_id'],
             'to_person_id' => $data['to_person_id'],
             'kind' => $data['kind'],
-            'created_by' => $request->user('admin')->id,
+            // Null for a panel user: the column is a foreign key into admins, so
+            // only an admin can be named here. Who actually did it is recorded
+            // either way in the activity log, which knows both guards.
+            'created_by' => auth('admin')->id(),
         ]);
 
         $this->syncAttachments($request, $settlement);
@@ -140,7 +146,7 @@ class SettlementController extends Controller
                 'original_name' => $file->getClientOriginalName(),
                 'mime_type' => $file->getClientMimeType(),
                 'size' => $file->getSize(),
-                'uploaded_by' => $request->user('admin')->id,
+                'uploaded_by' => auth('admin')->id(),
             ]);
         }
     }

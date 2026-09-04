@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Models\Concerns\LogsActivity;
+use App\Models\Contracts\CompanyScoped;
+use App\Support\CompanyAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,9 +16,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * A project always belongs to exactly one company, and its people are the
  * only people an expense or credit on this project may be booked against.
  */
-class Project extends Model
+class Project extends Model implements CompanyScoped
 {
     use SoftDeletes, LogsActivity;
+
+    public function accessibleToCurrentActor(): bool
+    {
+        return CompanyAccess::allows($this->company_id);
+    }
 
     protected $fillable = [
         'company_id', 'name', 'description', 'start_date', 'end_date', 'status',
@@ -64,6 +71,17 @@ class Project extends Model
     public function scopeOfCompany(Builder $query, mixed $companyId): Builder
     {
         return $companyId ? $query->where('company_id', $companyId) : $query;
+    }
+
+    /**
+     * Narrows to the companies the signed-in actor may see. Null means an
+     * admin, so no restriction; see Company::scopeForCompanies.
+     *
+     * @param  int[]|null  $companyIds
+     */
+    public function scopeForCompanies(Builder $query, ?array $companyIds): Builder
+    {
+        return $companyIds === null ? $query : $query->whereIn('projects.company_id', $companyIds);
     }
 
     public function scopeSearch(Builder $query, ?string $term): Builder

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Contracts\CompanyScoped;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -14,8 +15,21 @@ use Illuminate\Support\Facades\Storage;
  * Files live on the private disk and are streamed through an authenticated
  * route, never exposed under a guessable public URL.
  */
-class Attachment extends Model
+class Attachment extends Model implements CompanyScoped
 {
+    /**
+     * A file is exactly as reachable as the record it hangs off. Both owners -
+     * Transaction and Settlement - are themselves CompanyScoped, so this just
+     * asks them. An orphan whose owner is gone is refused: a receipt is not
+     * something to hand out when nobody can say whose it was.
+     */
+    public function accessibleToCurrentActor(): bool
+    {
+        $owner = $this->attachable;
+
+        return $owner instanceof CompanyScoped && $owner->accessibleToCurrentActor();
+    }
+
     // attachable_type and attachable_id are set by the relation, not by mass
     // assignment - a request must never be able to point a file at another
     // owner by posting the keys.

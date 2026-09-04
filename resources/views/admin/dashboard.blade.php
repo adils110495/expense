@@ -234,9 +234,11 @@
                 </div>
                 <div class="card__body">
                     <div class="btn-row">
-                        <a href="{{ route('admin.expenses.create') }}" class="btn btn--primary">+ Add Expense</a>
-                        <a href="{{ route('admin.credits.create') }}" class="btn">+ Add Credit</a>
-                        <a href="{{ route('admin.companies.create') }}" class="btn">+ Company</a>
+                        <a href="{{ route('admin.transactions.create', ['type' => 'expense']) }}" class="btn btn--primary">+ Add Expense</a>
+                        <a href="{{ route('admin.transactions.create', ['type' => 'credit']) }}" class="btn">+ Add Credit</a>
+                        @admin
+                            <a href="{{ route('admin.companies.create') }}" class="btn">+ Company</a>
+                        @endadmin
                         <a href="{{ route('admin.projects.create') }}" class="btn">+ Project</a>
                         <a href="{{ route('admin.people.create') }}" class="btn">+ Person</a>
                     </div>
@@ -261,7 +263,7 @@
                 <x-empty-state
                     title="No transactions found"
                     message="Nothing was recorded in this period. Add an expense or a credit to get started."
-                    :action="route('admin.expenses.create')"
+                    :action="route('admin.transactions.create', ['type' => 'expense'])"
                     action-label="+ Add Expense"/>
             @else
                 <div class="card__body card__body--flush">

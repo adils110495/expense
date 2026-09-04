@@ -420,6 +420,7 @@
             field.addEventListener('change', function () { field.form.requestSubmit(); });
         });
 
+        initTypeCategories();
         initHierarchyPickers();
         initBulkSelect();
         initFilePreviews();
@@ -466,6 +467,113 @@
 
             sync();
         });
+    }
+
+    /* ---------- Transaction type -> category ----------
+
+       Unlike the hierarchy pickers below, the category list is *not* already
+       on the page: an expense form has no business shipping every credit
+       category. So the type dropdown fetches the matching list instead, and
+       the same handler re-words the couple of labels that read differently
+       for money going out and money coming in.
+
+       With JavaScript off the form still works - it renders the categories
+       for the type it was opened with, and TransactionRequest refuses a
+       category of the wrong type whatever arrives. */
+
+    var TYPE_WORDS = { expense: 'spent', credit: 'received' };
+
+    function initTypeCategories() {
+        var form = document.querySelector('[data-tx-form]');
+        if (!form) return;
+
+        var typeSelect = form.querySelector('[data-tx-type]');
+        var category = form.querySelector('[data-tx-category]');
+        if (!typeSelect || !category) return;
+
+        // Remembered so a failed fetch can put back exactly what was showing
+        // rather than leaving the user with an empty dropdown.
+        var lastGood = { type: typeSelect.value, html: category.innerHTML };
+        var token = 0;
+
+        typeSelect.addEventListener('change', function () {
+            var type = typeSelect.value;
+            var mine = ++token;
+
+            relabel(type);
+
+            category.disabled = true;
+            category.innerHTML = '';
+            category.appendChild(option('', category.dataset.txLoading || 'Loading...'));
+
+            fetch(form.dataset.txCategoriesUrl + '?type=' + encodeURIComponent(type), {
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json' }
+            })
+                .then(function (response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.json();
+                })
+                .then(function (data) {
+                    // A slower earlier request must not overwrite a later one.
+                    if (mine !== token) return;
+
+                    category.innerHTML = '';
+                    category.appendChild(option('', 'Select a category'));
+
+                    (data.categories || []).forEach(function (row) {
+                        category.appendChild(option(row.id, row.name));
+                    });
+
+                    lastGood = { type: type, html: category.innerHTML };
+                    toggleNoCategories(!(data.categories || []).length, type);
+                })
+                .catch(function () {
+                    if (mine !== token) return;
+
+                    // Offline, or the session timed out. Restore whatever was
+                    // last known good and let the server have the final say on
+                    // submit - silently saving a mismatched category is worse.
+                    category.innerHTML = lastGood.html;
+                    relabel(lastGood.type);
+                    typeSelect.value = lastGood.type;
+                })
+                .then(function () {
+                    if (mine === token) category.disabled = false;
+                });
+        });
+
+        function relabel(type) {
+            var payer = form.querySelector('[data-tx-payer-label]');
+            if (payer) payer.textContent = type === 'credit' ? 'Payment Received' : 'Payment By';
+
+            form.querySelectorAll('[data-tx-placeholder-' + type + ']').forEach(function (field) {
+                field.placeholder = field.dataset['txPlaceholder' + type.charAt(0).toUpperCase() + type.slice(1)];
+            });
+
+            var direction = form.querySelector('[data-tx-direction-word]');
+            if (direction) direction.textContent = TYPE_WORDS[type] || '';
+        }
+
+        function toggleNoCategories(empty, type) {
+            var banner = document.querySelector('[data-tx-no-categories]');
+            if (!banner) return;
+
+            banner.hidden = !empty;
+
+            var word = banner.querySelector('[data-tx-type-word]');
+            if (word) word.textContent = type;
+
+            var link = banner.querySelector('[data-tx-category-link]');
+            if (link) link.href = link.dataset.txCategoryLink + '?type=' + encodeURIComponent(type);
+        }
+    }
+
+    function option(value, text) {
+        var node = document.createElement('option');
+        node.value = value;
+        node.textContent = text;
+        return node;
     }
 
     /* ---------- Company -> Project -> Person dependent dropdowns ----------

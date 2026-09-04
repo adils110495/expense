@@ -4,27 +4,43 @@ namespace App\Http\Requests\Admin;
 
 use App\Http\Requests\Admin\Concerns\ValidatesHierarchy;
 use App\Models\Transaction;
+use App\Support\CompanyAccess;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * Shared validation for both money modules. Subclasses pin the type so the
- * category rule can require a category of the matching kind.
+ * Validation for the single transaction form.
+ *
+ * Expenses and credits are one record and one form; the type is a field on it
+ * rather than a property of the route, so the category rule reads the type off
+ * the submission and demands a category of that same kind.
  */
-abstract class TransactionRequest extends FormRequest
+class TransactionRequest extends FormRequest
 {
     use ValidatesHierarchy;
 
-    abstract public function transactionType(): string;
-
     public function authorize(): bool
     {
-        return $this->user('admin') !== null;
+        return CompanyAccess::check();
+    }
+
+    /**
+     * The submitted type, or null when it is missing or not one of ours. Null
+     * makes the category rule match nothing, which is the right outcome - the
+     * separate `type` rule is what explains it to the user.
+     */
+    public function transactionType(): ?string
+    {
+        $type = $this->input('type');
+
+        return in_array($type, Transaction::TYPES, true) ? $type : null;
     }
 
     public function rules(): array
     {
         return [
+            'type' => ['required', Rule::in(Transaction::TYPES)],
+
             // Only creation demands an *active* company and project. Editing
             // an older record whose company was since deactivated must stay
             // possible, and the dropdowns already keep inactive entries out of
@@ -35,6 +51,9 @@ abstract class TransactionRequest extends FormRequest
             // gt:0 rejects zero and negatives; the regex pins it to 2 decimals.
             'amount' => ['required', 'numeric', 'gt:0', 'max:9999999999', 'regex:/^\d+(\.\d{1,2})?$/'],
             'transaction_date' => ['required', 'date', 'before_or_equal:today'],
+            // The category dropdown is refilled over AJAX when the type
+            // changes, but this is the guard: a credit category can never be
+            // saved onto an expense, however the form was driven.
             'category_id' => [
                 'required',
                 Rule::exists('categories', 'id')
@@ -67,23 +86,28 @@ abstract class TransactionRequest extends FormRequest
 
     public function messages(): array
     {
+        $subject = $this->transactionType() ?? 'transaction';
+
         return [
+            'type.required' => 'Please choose whether this is an expense or a credit.',
+            'type.in' => 'Please choose whether this is an expense or a credit.',
             'amount.gt' => 'The amount must be greater than 0.',
             'amount.regex' => 'The amount may have at most 2 decimal places.',
-            'category_id.exists' => 'Please choose an active '.$this->transactionType().' category.',
+            'category_id.exists' => 'Please choose an active '.$subject.' category.',
             'transaction_date.before_or_equal' => 'The date cannot be in the future.',
             'payment_by_id.exists' => 'Please choose an active entry from the list.',
             'attachments.max' => 'You can attach at most 10 files.',
             'attachments.*.max' => 'Each file must be 5 MB or smaller.',
             'attachments.*.mimes' => 'Attachments must be JPG, PNG, WEBP, GIF or PDF files.',
 
-            ...$this->hierarchyMessages($this->transactionType()),
+            ...$this->hierarchyMessages($subject),
         ];
     }
 
     public function attributes(): array
     {
         return [
+            'type' => 'transaction type',
             'category_id' => 'category',
             'transaction_date' => 'date',
             'payment_method' => 'payment method',

@@ -269,7 +269,7 @@
                 <x-empty-state
                     title="No transactions match this report"
                     message="Adjust the criteria above, or record a transaction first."
-                    :action="route('admin.expenses.create')"
+                    :action="route('admin.transactions.create', ['type' => 'expense'])"
                     action-label="+ Add Expense"/>
             @else
                 <div class="card__body card__body--flush">

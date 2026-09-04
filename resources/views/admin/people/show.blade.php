@@ -27,8 +27,8 @@
                     @endif
                 </h2>
                 <div class="btn-row">
-                    <a href="{{ route('admin.expenses.create', ['person_id' => $person->id]) }}" class="btn btn--primary">+ Add Expense</a>
-                    <a href="{{ route('admin.credits.create', ['person_id' => $person->id]) }}" class="btn">+ Add Credit</a>
+                    <a href="{{ route('admin.transactions.create', ['type' => 'expense', 'person_id' => $person->id]) }}" class="btn btn--primary">+ Add Expense</a>
+                    <a href="{{ route('admin.transactions.create', ['type' => 'credit', 'person_id' => $person->id]) }}" class="btn">+ Add Credit</a>
                     <a href="{{ route('admin.people.edit', $person) }}" class="btn">Edit</a>
                 </div>
             </div>
@@ -210,7 +210,7 @@
                 <x-empty-state
                     title="No transactions in this period"
                     message="Nothing has been recorded against this person for the selected dates."
-                    :action="route('admin.expenses.create', ['person_id' => $person->id])"
+                    :action="route('admin.transactions.create', ['type' => 'expense', 'person_id' => $person->id])"
                     action-label="+ Add Expense"/>
             @else
                 <div class="card__body card__body--flush">
@@ -262,10 +262,10 @@
                                     </td>
                                     <td>
                                         <div class="actions">
-                                            <a href="{{ route('admin.'.$row->type.'s.show', $row) }}" class="btn btn--sm">View</a>
-                                            <a href="{{ route('admin.'.$row->type.'s.edit', $row) }}" class="btn btn--sm">Edit</a>
+                                            <a href="{{ route('admin.transactions.show', $row) }}" class="btn btn--sm">View</a>
+                                            <a href="{{ route('admin.transactions.edit', $row) }}" class="btn btn--sm">Edit</a>
 
-                                            <form method="POST" action="{{ route('admin.'.$row->type.'s.destroy', $row) }}"
+                                            <form method="POST" action="{{ route('admin.transactions.destroy', $row) }}"
                                                   data-confirm="Delete this {{ $row->type }}?">
                                                 @csrf
                                                 @method('DELETE')

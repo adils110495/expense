@@ -10,7 +10,7 @@
 @section('heading', $record->title)
 @section('breadcrumbs')
     <span>Admin</span>
-    <span><a href="{{ route($routeName.'.index') }}">{{ $label }}s</a></span>
+    <span><a href="{{ route('admin.transactions.index') }}">Transactions</a></span>
     <span>Details</span>
 @endsection
 
@@ -24,14 +24,14 @@
                     </span>
                 </h2>
                 <div class="btn-row">
-                    <a href="{{ route($routeName.'.edit', $record) }}" class="btn">Edit</a>
-                    <form method="POST" action="{{ route($routeName.'.destroy', $record) }}"
+                    <a href="{{ route('admin.transactions.edit', $record) }}" class="btn">Edit</a>
+                    <form method="POST" action="{{ route('admin.transactions.destroy', $record) }}"
                           data-confirm="Are you sure you want to delete this {{ Str::lower($label) }}?">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="btn btn--danger" data-busy="Deleting...">Delete</button>
                     </form>
-                    <a href="{{ route($routeName.'.index') }}" class="btn btn--ghost">Back</a>
+                    <a href="{{ route('admin.transactions.index') }}" class="btn btn--ghost">Back</a>
                 </div>
             </div>
 
@@ -93,16 +93,14 @@
                         <dt>Payment Method</dt>
                         <dd>{{ $record->payment_method_label }}</dd>
                     </div>
-                    @if ($extras)
-                        <div class="dl__row">
-                            <dt>{{ $payerLabel }}</dt>
-                            <dd>{{ $record->paymentBy?->name ?? '--' }}</dd>
-                        </div>
-                        <div class="dl__row">
-                            <dt>Location</dt>
-                            <dd>{{ $record->location ?: '--' }}</dd>
-                        </div>
-                    @endif
+                    <div class="dl__row">
+                        <dt>{{ $payerLabel }}</dt>
+                        <dd>{{ $record->paymentBy?->name ?? '--' }}</dd>
+                    </div>
+                    <div class="dl__row">
+                        <dt>Location</dt>
+                        <dd>{{ $record->location ?: '--' }}</dd>
+                    </div>
                     <div class="dl__row">
                         <dt>Description</dt>
                         <dd>{{ $record->description ?: '--' }}</dd>
@@ -125,63 +123,61 @@
             </div>
         </div>
 
-        @if ($extras)
-            <div class="card">
-                <div class="card__head">
-                    <h2>Receipts &amp; invoices</h2>
-                    <span class="badge badge--muted">{{ $record->attachments->count() }} file(s)</span>
-                </div>
-
-                @if ($record->attachments->isEmpty())
-                    <x-empty-state
-                        title="No files attached"
-                        :message="'Add a receipt or invoice by editing this '.Str::lower($label).'.'"
-                        :action="route($routeName.'.edit', $record)"
-                        :action-label="'Edit '.Str::lower($label)"/>
-                @else
-                    <div class="card__body">
-                        <div class="attachments">
-                            @foreach ($record->attachments as $attachment)
-                                <div class="attachment">
-                                    <a class="attachment__thumb"
-                                       href="{{ route('admin.attachments.show', $attachment) }}"
-                                       target="_blank" rel="noopener" data-no-ajax
-                                       title="Open {{ $attachment->original_name }}">
-                                        @if ($attachment->isImage())
-                                            <img src="{{ route('admin.attachments.show', $attachment) }}"
-                                                 alt="{{ $attachment->original_name }}" loading="lazy">
-                                        @else
-                                            <span aria-hidden="true">PDF</span>
-                                        @endif
-                                    </a>
-                                    <span class="attachment__meta">
-                                        <a href="{{ route('admin.attachments.show', $attachment) }}"
-                                           target="_blank" rel="noopener" data-no-ajax>
-                                            {{ $attachment->original_name }}
-                                        </a>
-                                        <span class="muted small">
-                                            {{ $attachment->readable_size }} &middot;
-                                            {{ $attachment->created_at->format('d M Y') }}
-                                        </span>
-                                    </span>
-                                    <span class="actions">
-                                        <a href="{{ route('admin.attachments.download', $attachment) }}"
-                                           class="btn btn--sm" data-no-ajax>Download</a>
-                                        <form method="POST"
-                                              action="{{ route('admin.attachments.destroy', $attachment) }}"
-                                              data-confirm="Remove &quot;{{ $attachment->original_name }}&quot;? This cannot be undone.">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn btn--sm btn--danger"
-                                                    data-busy="Removing...">Remove</button>
-                                        </form>
-                                    </span>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
-                @endif
+        <div class="card">
+            <div class="card__head">
+                <h2>Receipts &amp; invoices</h2>
+                <span class="badge badge--muted">{{ $record->attachments->count() }} file(s)</span>
             </div>
-        @endif
+
+            @if ($record->attachments->isEmpty())
+                <x-empty-state
+                    title="No files attached"
+                    :message="'Add a receipt or invoice by editing this '.Str::lower($label).'.'"
+                    :action="route('admin.transactions.edit', $record)"
+                    :action-label="'Edit '.Str::lower($label)"/>
+            @else
+                <div class="card__body">
+                    <div class="attachments">
+                        @foreach ($record->attachments as $attachment)
+                            <div class="attachment">
+                                <a class="attachment__thumb"
+                                   href="{{ route('admin.attachments.show', $attachment) }}"
+                                   target="_blank" rel="noopener" data-no-ajax
+                                   title="Open {{ $attachment->original_name }}">
+                                    @if ($attachment->isImage())
+                                        <img src="{{ route('admin.attachments.show', $attachment) }}"
+                                             alt="{{ $attachment->original_name }}" loading="lazy">
+                                    @else
+                                        <span aria-hidden="true">PDF</span>
+                                    @endif
+                                </a>
+                                <span class="attachment__meta">
+                                    <a href="{{ route('admin.attachments.show', $attachment) }}"
+                                       target="_blank" rel="noopener" data-no-ajax>
+                                        {{ $attachment->original_name }}
+                                    </a>
+                                    <span class="muted small">
+                                        {{ $attachment->readable_size }} &middot;
+                                        {{ $attachment->created_at->format('d M Y') }}
+                                    </span>
+                                </span>
+                                <span class="actions">
+                                    <a href="{{ route('admin.attachments.download', $attachment) }}"
+                                       class="btn btn--sm" data-no-ajax>Download</a>
+                                    <form method="POST"
+                                          action="{{ route('admin.attachments.destroy', $attachment) }}"
+                                          data-confirm="Remove &quot;{{ $attachment->original_name }}&quot;? This cannot be undone.">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" class="btn btn--sm btn--danger"
+                                                data-busy="Removing...">Remove</button>
+                                    </form>
+                                </span>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+        </div>
     </div>
 @endsection

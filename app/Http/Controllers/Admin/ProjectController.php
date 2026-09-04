@@ -12,6 +12,7 @@ use App\Models\Transaction;
 use App\Models\UserActivity;
 use App\Services\FinanceReport;
 use App\Services\HierarchyReport;
+use App\Support\CompanyAccess;
 use App\Support\DateRange;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,6 +26,7 @@ class ProjectController extends Controller
         $range = DateRange::fromRequest($request, 'all');
 
         $projects = Project::query()
+            ->forCompanies(CompanyAccess::scopeIds())
             ->search($request->query('q'))
             ->ofCompany($request->query('company_id'))
             ->when($request->filled('status'), fn ($q) => $q->where('status', (bool) $request->query('status')))
@@ -37,7 +39,7 @@ class ProjectController extends Controller
         return view('admin.projects.index', [
             'projects' => $projects,
             'totals' => HierarchyReport::forRange($range->from, $range->to)->totalsBy('project_id'),
-            'companies' => Company::orderBy('name')->get(),
+            'companies' => Company::forCompanies(CompanyAccess::allowedIds())->orderBy('name')->get(),
             'range' => $range,
         ]);
     }
@@ -52,7 +54,7 @@ class ProjectController extends Controller
                 'company_id' => $request->integer('company_id') ?: null,
             ]),
             'companies' => $this->companies(),
-            'people' => Person::active()->orderBy('name')->get(),
+            'people' => Person::active()->forCompanies(CompanyAccess::allowedIds())->orderBy('name')->get(),
             'assigned' => [],
         ]);
     }
@@ -105,7 +107,7 @@ class ProjectController extends Controller
                 ->limit(10)
                 ->get(),
             // For the "assign people" picker - everyone not already on it.
-            'assignable' => Person::active()
+            'assignable' => Person::active()->forCompanies(CompanyAccess::allowedIds())
                 ->whereDoesntHave('projects', fn ($q) => $q->where('projects.id', $project->id))
                 ->orderBy('name')
                 ->get(),
@@ -119,6 +121,7 @@ class ProjectController extends Controller
             'project' => $project,
             'companies' => $this->companies($project->company_id),
             'people' => Person::query()
+                ->forCompanies(CompanyAccess::allowedIds())
                 // Keep anyone already assigned in the list even if they were
                 // deactivated afterwards, so saving cannot silently drop them.
                 ->where(fn ($q) => $q->where('status', true)
@@ -175,7 +178,18 @@ class ProjectController extends Controller
     {
         $validated = $request->validate([
             'people' => ['required', 'array', 'min:1'],
-            'people.*' => [Rule::exists('people', 'id')->whereNull('deleted_at')],
+            // Same test the picker above it is built from, so an id posted by
+            // hand cannot pull someone in from another company.
+            'people.*' => ['integer', function (string $attribute, mixed $value, \Closure $fail) {
+                $visible = Person::query()
+                    ->forCompanies(CompanyAccess::allowedIds())
+                    ->whereKey($value)
+                    ->exists();
+
+                if (! $visible) {
+                    $fail('Please choose a person you have access to.');
+                }
+            }],
         ], [
             'people.required' => 'Choose at least one person to assign.',
         ], ['people' => 'people']);
@@ -242,9 +256,18 @@ class ProjectController extends Controller
     }
 
     /** Active companies, plus the project's current one if it was deactivated. */
+    /**
+     * The company dropdown on the project form: active companies within the
+     * actor's mapping, plus whichever one the project already belongs to.
+     *
+     * allowedIds() rather than scopeIds() - narrowing the header to one
+     * company is about what you are looking at, and must not stop you moving a
+     * project between two companies that are both yours.
+     */
     private function companies(?int $include = null)
     {
         return Company::query()
+            ->forCompanies(CompanyAccess::allowedIds())
             ->where(fn ($q) => $q->where('status', true)->when($include, fn ($w) => $w->orWhere('id', $include)))
             ->orderBy('name')
             ->get();

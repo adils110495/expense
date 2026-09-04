@@ -65,6 +65,11 @@ class UserActivity extends Model
      * Records one entry. The acting admin, and the address they acted from,
      * are read from the current request; in a console context both are simply
      * absent and the entry is attributed to the system.
+     *
+     * Panel users act too, and they are named here as well - but only by name.
+     * admin_id is a foreign key into `admins`, so a user's id cannot go in it
+     * without breaking the constraint; the name carries the attribution and is
+     * marked so the two can never be confused for one another.
      */
     public static function record(
         string $action,
@@ -74,10 +79,12 @@ class UserActivity extends Model
     ): void {
         try {
             $admin = auth('admin')->user();
+            $user = $admin ? null : auth('web')->user();
 
             self::create([
                 'admin_id' => $admin?->id,
-                'admin_name' => $admin?->name ?? 'System',
+                'admin_name' => $admin?->name
+                    ?? ($user ? $user->name.' (user)' : 'System'),
                 'action' => $action,
                 'table_name' => $table,
                 'record_id' => $recordId,

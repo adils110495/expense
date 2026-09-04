@@ -2,7 +2,10 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Models\Person;
 use App\Models\Settlement;
+use App\Support\CompanyAccess;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -11,7 +14,7 @@ class SettlementRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user('admin') !== null;
+        return CompanyAccess::check();
     }
 
     public function rules(): array
@@ -44,14 +47,37 @@ class SettlementRequest extends FormRequest
             // partners are fixed.
             'from_person_id' => [
                 $settlement ? 'nullable' : 'required',
-                Rule::exists('people', 'id')->whereNull('deleted_at'),
+                $this->visiblePerson(),
             ],
             'to_person_id' => [
                 $settlement ? 'nullable' : 'required',
                 'different:from_person_id',
-                Rule::exists('people', 'id')->whereNull('deleted_at'),
+                $this->visiblePerson(),
             ],
         ];
+    }
+
+    /**
+     * A partner the actor can actually see.
+     *
+     * The settlement itself lands on their own project, so naming an outsider
+     * would leak no money - but it would print that person's name on a page
+     * they are not supposed to know about, and leave the settlement showing on
+     * a stranger's record. Same test as the people list, so the two agree.
+     */
+    private function visiblePerson(): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail): void {
+            $visible = Person::query()
+                ->whereNull('deleted_at')
+                ->forCompanies(CompanyAccess::allowedIds())
+                ->whereKey($value)
+                ->exists();
+
+            if (! $visible) {
+                $fail('Please choose a partner you have access to.');
+            }
+        };
     }
 
     public function after(): array

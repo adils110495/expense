@@ -33,8 +33,41 @@
                 @endif
             </div>
 
-            <span class="avatar" title="{{ auth('admin')->user()->name }}">
-                {{ Str::of(auth('admin')->user()->name)->substr(0, 1)->upper() }}
+            @php
+                use App\Support\CompanyAccess;
+
+                // Either guard - an admin or a panel user is signing this page.
+                $actor = CompanyAccess::actor();
+                $selectableCompanies = CompanyAccess::selectable();
+                $selectedCompanyId = CompanyAccess::selectedId();
+            @endphp
+
+            {{-- The company selector. Shown only when there is a real choice
+                 to make: someone mapped to a single company has nothing to
+                 switch between, and an empty dropdown would only puzzle them.
+                 It is a view filter, never a grant - the server re-checks the
+                 stored id against the live mapping on every read. --}}
+            @if ($selectableCompanies->count() > 1)
+                <form method="POST" action="{{ route('admin.company-scope') }}" class="topbar__scope">
+                    @csrf
+                    <label for="company-scope" class="topbar__scope-label">Company</label>
+                    <select id="company-scope" name="company_id" class="select select--sm" data-auto-submit>
+                        <option value="">All companies</option>
+                        @foreach ($selectableCompanies as $company)
+                            <option value="{{ $company->id }}" @selected($selectedCompanyId === $company->id)>
+                                {{ $company->name }}@unless ($company->status) (inactive)@endunless
+                            </option>
+                        @endforeach
+                    </select>
+                </form>
+            @elseif ($selectableCompanies->count() === 1)
+                {{-- Nothing to choose, but saying which company you are in
+                     still beats an unlabelled screen. --}}
+                <span class="topbar__scope-single">{{ $selectableCompanies->first()->name }}</span>
+            @endif
+
+            <span class="avatar" title="{{ $actor?->name }}{{ CompanyAccess::isAdmin() ? ' (admin)' : '' }}">
+                {{ Str::of($actor?->name ?? '?')->substr(0, 1)->upper() }}
             </span>
         </header>
 

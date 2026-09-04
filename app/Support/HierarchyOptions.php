@@ -9,6 +9,8 @@ use App\Models\Transaction;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
+// CompanyAccess needs no import - it is in this same App\Support namespace.
+
 /**
  * The three lists behind every Company -> Project -> Person picker.
  *
@@ -18,6 +20,12 @@ use Illuminate\Support\Facades\DB;
  * projects instantly and with no request. It also means the picker still
  * works with JavaScript off - the form just shows every option and the
  * server-side rules in TransactionRequest reject a mismatched combination.
+ *
+ * Every list here is company-scoped before it leaves this class, so an
+ * unauthorised company can never appear as an option in the first place. That
+ * is convenience rather than the guard: ValidatesHierarchy re-checks the
+ * chosen company on the way in, because an option list is only ever as
+ * trustworthy as the request that comes back.
  */
 class HierarchyOptions
 {
@@ -30,17 +38,24 @@ class HierarchyOptions
      */
     public static function forForm(?Transaction $record = null): array
     {
+        // Authority, not the header selection: picking one company to look at
+        // must not stop you filing a transaction against another of yours.
+        $allowed = CompanyAccess::allowedIds();
+
         $companies = Company::query()
+            ->forCompanies($allowed)
             ->where(self::activeOr($record?->company_id))
             ->orderBy('name')
             ->get(['id', 'name', 'status']);
 
         $projects = Project::query()
+            ->forCompanies($allowed)
             ->where(self::activeOr($record?->project_id))
             ->orderBy('name')
             ->get(['id', 'company_id', 'name', 'status']);
 
         $people = Person::query()
+            ->forCompanies($allowed)
             ->where(self::activeOr($record?->person_id))
             ->orderBy('name')
             ->get(['id', 'name', 'designation', 'status']);
@@ -54,18 +69,21 @@ class HierarchyOptions
     }
 
     /**
-     * Lists for a filter bar: everything, including deactivated records - an
-     * old transaction may point at one and you still want to filter by it.
+     * Lists for a filter bar: everything within reach, including deactivated
+     * records - an old transaction may point at one and you still want to
+     * filter by it.
      *
      * @return array{companies: mixed, projects: mixed, people: mixed, personProjects: array<int, int[]>}
      */
     public static function forFilters(): array
     {
-        $people = Person::orderBy('name')->get(['id', 'name', 'designation', 'status']);
+        $allowed = CompanyAccess::allowedIds();
+
+        $people = Person::forCompanies($allowed)->orderBy('name')->get(['id', 'name', 'designation', 'status']);
 
         return [
-            'companies' => Company::orderBy('name')->get(['id', 'name', 'status']),
-            'projects' => Project::orderBy('name')->get(['id', 'company_id', 'name', 'status']),
+            'companies' => Company::forCompanies($allowed)->orderBy('name')->get(['id', 'name', 'status']),
+            'projects' => Project::forCompanies($allowed)->orderBy('name')->get(['id', 'company_id', 'name', 'status']),
             'people' => $people,
             'personProjects' => self::personProjects($people->pluck('id')->all()),
         ];

@@ -29,9 +29,9 @@
                     </span>
                 </h2>
                 <div class="btn-row">
-                    <a href="{{ route('admin.expenses.create', ['company_id' => $project->company_id, 'project_id' => $project->id]) }}"
+                    <a href="{{ route('admin.transactions.create', ['type' => 'expense', 'company_id' => $project->company_id, 'project_id' => $project->id]) }}"
                        class="btn btn--primary">+ Add Expense</a>
-                    <a href="{{ route('admin.credits.create', ['company_id' => $project->company_id, 'project_id' => $project->id]) }}"
+                    <a href="{{ route('admin.transactions.create', ['type' => 'credit', 'company_id' => $project->company_id, 'project_id' => $project->id]) }}"
                        class="btn">+ Add Credit</a>
                     <a href="{{ route('admin.projects.settlement', $project) }}" class="btn">Settlement</a>
                     <a href="{{ route('admin.projects.edit', $project) }}" class="btn">Edit</a>
@@ -146,12 +146,14 @@
                                     <td class="num">{{ $person['totals']['count'] }}</td>
                                     <td>
                                         <div class="actions">
-                                            <a href="{{ route('admin.expenses.create', [
+                                            <a href="{{ route('admin.transactions.create', [
+                                                    'type' => 'expense',
                                                     'company_id' => $project->company_id,
                                                     'project_id' => $project->id,
                                                     'person_id' => $person['id'],
                                                ]) }}" class="btn btn--sm">+ Expense</a>
-                                            <a href="{{ route('admin.credits.create', [
+                                            <a href="{{ route('admin.transactions.create', [
+                                                    'type' => 'credit',
                                                     'company_id' => $project->company_id,
                                                     'project_id' => $project->id,
                                                     'person_id' => $person['id'],
@@ -219,7 +221,7 @@
                                         </span>
                                     </td>
                                     <td class="title">
-                                        <a href="{{ route('admin.'.$row->type.'s.show', $row) }}">{{ $row->title }}</a>
+                                        <a href="{{ route('admin.transactions.show', $row) }}">{{ $row->title }}</a>
                                     </td>
                                     <td>{{ $row->person?->name ?? '--' }}</td>
                                     <td>{{ $row->category?->name ?? '--' }}</td>

@@ -215,6 +215,47 @@ h3 { font-size: .95rem; }
     flex: 0 0 auto;
 }
 
+/* ---------- Company selector in the header ----------
+
+   Sits between the page title and the avatar. It never wraps or shrinks the
+   title away: flex:0 0 auto keeps it at its own width, and below the tablet
+   breakpoint the label is dropped so the select alone still fits. */
+
+.topbar__scope {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    margin: 0;
+}
+
+.topbar__scope-label {
+    font-size: .78rem;
+    color: var(--muted);
+    margin: 0;
+    white-space: nowrap;
+}
+
+.topbar__scope-single {
+    font-size: .82rem;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+    flex: 0 0 auto;
+}
+
+.select--sm {
+    height: 34px;
+    padding: 0 30px 0 10px;
+    font-size: .82rem;
+    max-width: 190px;
+}
+
+@media (max-width: 900px) {
+    .topbar__scope-label { display: none; }
+    .select--sm { max-width: 140px; }
+}
+
 .avatar {
     display: grid; place-items: center;
     width: 34px; height: 34px;

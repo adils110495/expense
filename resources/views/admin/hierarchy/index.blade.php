@@ -17,7 +17,9 @@
             <div class="card__head">
                 <h2>Company &rarr; Project &rarr; Person</h2>
                 <div class="btn-row">
-                    <a href="{{ route('admin.companies.create') }}" class="btn btn--sm">+ Company</a>
+                    @admin
+                        <a href="{{ route('admin.companies.create') }}" class="btn btn--sm">+ Company</a>
+                    @endadmin
                     <a href="{{ route('admin.projects.create') }}" class="btn btn--sm">+ Project</a>
                     <a href="{{ route('admin.people.create') }}" class="btn btn--sm">+ Person</a>
                 </div>

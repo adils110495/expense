@@ -132,9 +132,13 @@
             <div class="card__head">
                 <h2>All transactions <span class="muted small">({{ $records->total() }})</span></h2>
                 <div class="btn-row">
-                    <a href="{{ route('admin.expenses.create') }}" class="btn btn--sm">+ Expense</a>
-                    <a href="{{ route('admin.credits.create') }}" class="btn btn--sm">+ Credit</a>
-                    <a href="{{ route('admin.transactions.assign') }}" class="btn btn--sm">Bulk assign</a>
+                    {{-- One form for both: the type is picked on it. --}}
+                    <a href="{{ route('admin.transactions.create') }}" class="btn btn--sm btn--primary">+ Transaction</a>
+                    {{-- Bulk assign works on transactions with no company yet,
+                         which only an administrator can see. --}}
+                    @admin
+                        <a href="{{ route('admin.transactions.assign') }}" class="btn btn--sm">Bulk assign</a>
+                    @endadmin
                 </div>
             </div>
 
@@ -142,8 +146,8 @@
                 <x-empty-state
                     title="No transactions found"
                     message="Nothing matches the current filters. Try a wider period, or record a new entry."
-                    :action="route('admin.expenses.create')"
-                    action-label="+ Add Expense"/>
+                    :action="route('admin.transactions.create')"
+                    action-label="+ Add Transaction"/>
             @else
                 <div class="card__body card__body--flush">
                     <div class="table-wrap">
@@ -171,7 +175,6 @@
                             </thead>
                             <tbody>
                             @foreach ($records as $row)
-                                @php $module = $row->type === 'expense' ? 'admin.expenses' : 'admin.credits'; @endphp
                                 <tr>
                                     <td class="nowrap">{{ $row->transaction_date->format($dateFormat) }}</td>
                                     <td>
@@ -195,8 +198,8 @@
                                     <td class="nowrap">{{ $row->payment_method_label }}</td>
                                     <td>
                                         <div class="actions">
-                                            <a href="{{ route($module.'.show', $row) }}" class="btn btn--sm">View</a>
-                                            <a href="{{ route($module.'.edit', $row) }}" class="btn btn--sm">Edit</a>
+                                            <a href="{{ route('admin.transactions.show', $row) }}" class="btn btn--sm">View</a>
+                                            <a href="{{ route('admin.transactions.edit', $row) }}" class="btn btn--sm">Edit</a>
                                         </div>
                                     </td>
                                 </tr>

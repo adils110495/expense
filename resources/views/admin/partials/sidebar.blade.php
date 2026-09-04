@@ -1,6 +1,12 @@
 @php
+    use App\Support\CompanyAccess;
+
     // Each item names its own section, so adding one never means recounting
     // indexes to keep the group headings in the right place.
+    //
+    // 'admin' => true marks a screen that sits above any one company, so a
+    // panel user never sees the link. Hiding it is only tidiness - the routes
+    // themselves carry admin.only, which is what actually refuses the request.
     $nav = [
         ['group' => 'Overview', 'route' => 'admin.dashboard', 'label' => 'Dashboard', 'pattern' => 'admin/dashboard',
          'icon' => 'M3 12h6v9H3zM10 3h4v18h-4zM15 8h6v13h-6z'],
@@ -14,26 +20,35 @@
         ['group' => 'Structure', 'route' => 'admin.people.index', 'label' => 'People', 'pattern' => 'admin/people*',
          'icon' => 'M16 20v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 10a4 4 0 100-8 4 4 0 000 8zM22 20v-2a4 4 0 00-3-3.9M16 2.1a4 4 0 010 7.8'],
 
-        ['group' => 'Money', 'route' => 'admin.expenses.index', 'label' => 'Expenses', 'pattern' => 'admin/expenses*',
-         'icon' => 'M12 5v14M19 12l-7 7-7-7'],
-        ['group' => 'Money', 'route' => 'admin.credits.index', 'label' => 'Credits / Income', 'pattern' => 'admin/credits*',
-         'icon' => 'M12 19V5M5 12l7-7 7 7'],
+        // Expenses and Credits have no entry of their own: both are recorded
+        // and listed here, with Type as a filter on the list and a field on
+        // the form. Their per-project lists still exist, reached from the tabs
+        // on a project rather than from the panel nav.
         ['group' => 'Money', 'route' => 'admin.transactions.index', 'label' => 'Transactions', 'pattern' => 'admin/transactions*',
          'icon' => 'M4 7h16M4 7l4-4M4 7l4 4M20 17H4M20 17l-4-4M20 17l-4 4'],
         ['group' => 'Money', 'route' => 'admin.settlements.index', 'label' => 'Settlements', 'pattern' => 'admin/settlements*',
          'icon' => 'M12 3v18M8 7h6a3 3 0 010 6H9a3 3 0 000 6h7'],
 
-        ['group' => 'Manage', 'route' => 'admin.categories.index', 'label' => 'Categories', 'pattern' => 'admin/categories*',
-         'icon' => 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z'],
-        ['group' => 'Manage', 'route' => 'admin.payment-bys.index', 'label' => 'Payment By', 'pattern' => 'admin/payment-bys*',
-         'icon' => 'M3 7h18v10H3zM3 11h18M7 15h4'],
         ['group' => 'Manage', 'route' => 'admin.reports.index', 'label' => 'Reports', 'pattern' => 'admin/reports*',
          'icon' => 'M6 20V10M12 20V4M18 20v-6'],
-        ['group' => 'Manage', 'route' => 'admin.activity.index', 'label' => 'User Activity', 'pattern' => 'admin/activity*',
+
+        ['group' => 'Manage', 'route' => 'admin.users.index', 'label' => 'Users', 'pattern' => 'admin/users*', 'admin' => true,
+         'icon' => 'M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.9M16 3.1a4 4 0 010 7.8'],
+        ['group' => 'Manage', 'route' => 'admin.categories.index', 'label' => 'Categories', 'pattern' => 'admin/categories*', 'admin' => true,
+         'icon' => 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z'],
+        ['group' => 'Manage', 'route' => 'admin.payment-bys.index', 'label' => 'Payment By', 'pattern' => 'admin/payment-bys*', 'admin' => true,
+         'icon' => 'M3 7h18v10H3zM3 11h18M7 15h4'],
+        ['group' => 'Manage', 'route' => 'admin.activity.index', 'label' => 'User Activity', 'pattern' => 'admin/activity*', 'admin' => true,
          'icon' => 'M12 8v4l3 3M3 12a9 9 0 1 0 3-6.7L3 8m0-5v5h5'],
-        ['group' => 'Manage', 'route' => 'admin.settings.index', 'label' => 'Settings', 'pattern' => 'admin/settings*',
+        ['group' => 'Manage', 'route' => 'admin.settings.index', 'label' => 'Settings', 'pattern' => 'admin/settings*', 'admin' => true,
          'icon' => 'M12 15a3 3 0 100-6 3 3 0 000 6zM19 12a7 7 0 00-.1-1l2-1.6-2-3.4-2.4 1a7 7 0 00-1.7-1L14.5 3h-4l-.3 2.6a7 7 0 00-1.7 1l-2.4-1-2 3.4 2 1.6a7 7 0 000 2l-2 1.6 2 3.4 2.4-1a7 7 0 001.7 1l.3 2.6h4l.3-2.6a7 7 0 001.7-1l2.4 1 2-3.4-2-1.6c.07-.33.1-.66.1-1z'],
     ];
+
+    // Dropped for a panel user before the group headings are worked out, so a
+    // section left empty by the filter takes its heading away with it.
+    if (! CompanyAccess::isAdmin()) {
+        $nav = array_values(array_filter($nav, fn ($item) => ! ($item['admin'] ?? false)));
+    }
 @endphp
 
 <aside class="sidebar" id="sidebar">

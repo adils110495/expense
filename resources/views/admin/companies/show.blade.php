@@ -3,6 +3,7 @@
 @php
     use App\Services\HierarchyReport;
     use App\Services\SettlementEngine;
+    use App\Support\CompanyAccess;
     use App\Support\Money;
 @endphp
 
@@ -25,9 +26,11 @@
                 </h2>
                 <div class="btn-row">
                     <a href="{{ route('admin.projects.create', ['company_id' => $company->id]) }}" class="btn btn--primary">+ Add Project</a>
-                    <a href="{{ route('admin.expenses.create', ['company_id' => $company->id]) }}" class="btn">+ Add Expense</a>
-                    <a href="{{ route('admin.credits.create', ['company_id' => $company->id]) }}" class="btn">+ Add Credit</a>
-                    <a href="{{ route('admin.companies.edit', $company) }}" class="btn">Edit</a>
+                    <a href="{{ route('admin.transactions.create', ['type' => 'expense', 'company_id' => $company->id]) }}" class="btn">+ Add Expense</a>
+                    <a href="{{ route('admin.transactions.create', ['type' => 'credit', 'company_id' => $company->id]) }}" class="btn">+ Add Credit</a>
+                    @if (CompanyAccess::isAdmin())
+                        <a href="{{ route('admin.companies.edit', $company) }}" class="btn">Edit</a>
+                    @endif
                 </div>
             </div>
 
@@ -161,6 +164,47 @@
             </div>
         </div>
 
+        {{-- Who can see this company. Read straight off the mapping, so it is
+             the same answer the authorisation checks give. --}}
+        <div class="card">
+            <div class="card__head">
+                <h2>Users with access <span class="muted small">({{ $mappedUsers->count() }})</span></h2>
+                @if (CompanyAccess::isAdmin())
+                    <a href="{{ route('admin.users.create', ['company_id' => $company->id]) }}"
+                       class="btn btn--sm">+ Add User</a>
+                @endif
+            </div>
+
+            @if ($mappedUsers->isEmpty())
+                <div class="card__body">
+                    <p class="muted">
+                        No users are mapped to this company yet - only administrators can see it.
+                        @if (CompanyAccess::isAdmin())
+                            <a href="{{ route('admin.users.index') }}">Manage users</a>.
+                        @endif
+                    </p>
+                </div>
+            @else
+                <div class="card__body">
+                    <div class="row">
+                        @foreach ($mappedUsers as $mapped)
+                            <div class="field col-md-3 col-lg-3 col-sm-12 col-xs-12">
+                                <strong>{{ $mapped->name }}</strong>
+                                <div class="muted small">{{ $mapped->email }}</div>
+                                <span class="badge badge--{{ $mapped->status ? 'on' : 'off' }}">
+                                    <span class="dot"></span>{{ $mapped->status ? 'Active' : 'Inactive' }}
+                                </span>
+                                @if (CompanyAccess::isAdmin())
+                                    <a href="{{ route('admin.users.edit', $mapped->id) }}"
+                                       class="btn btn--sm">Edit</a>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
+        </div>
+
         {{-- Latest activity anywhere in the company --}}
         <div class="card">
             <div class="card__head">
@@ -173,7 +217,7 @@
                 <x-empty-state
                     title="No transactions in this period"
                     message="Nothing has been recorded against this company for the selected dates."
-                    :action="route('admin.expenses.create', ['company_id' => $company->id])"
+                    :action="route('admin.transactions.create', ['type' => 'expense', 'company_id' => $company->id])"
                     action-label="+ Add Expense"/>
             @else
                 <div class="card__body card__body--flush">
@@ -200,7 +244,7 @@
                                         </span>
                                     </td>
                                     <td class="title">
-                                        <a href="{{ route('admin.'.$row->type.'s.show', $row) }}">{{ $row->title }}</a>
+                                        <a href="{{ route('admin.transactions.show', $row) }}">{{ $row->title }}</a>
                                     </td>
                                     <td>{{ $row->project?->name ?? '--' }}</td>
                                     <td>{{ $row->person?->name ?? '--' }}</td>

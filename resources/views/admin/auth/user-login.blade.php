@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Admin Login &middot; {{ config('app.name') }}</title>
+    <title>Sign In &middot; {{ config('app.name') }}</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}?v={{ $assetVersion }}">
     <link rel="stylesheet" href="{{ asset('css/admin.css') }}?v={{ $assetVersion }}">
 </head>
@@ -14,7 +14,7 @@
             <span class="mark">₹</span>
             <span>{{ config('app.name') }}</span>
         </div>
-        <p class="sub">Sign in to the admin panel</p>
+        <p class="sub">Sign in to your companies</p>
 
         @if ($errors->any())
             <div class="alert alert--error" style="margin-bottom:16px;">
@@ -30,19 +30,17 @@
 
         {{-- Real submit: this page has no #page region, and a successful login
              needs a full document swap into the panel anyway. --}}
-        {{-- The auth card is a fixed 410px column, so these span the full
-             width. A col-md-3 here would be a 100px input. --}}
-        <form method="POST" action="{{ route('admin.login.attempt') }}" data-no-ajax>
+        <form method="POST" action="{{ route('user.login.attempt') }}" data-no-ajax>
             @csrf
 
             <div class="row">
                 <div class="field col-md-12 col-lg-12 col-sm-12 col-xs-12">
-                    <label for="login">Email or Username</label>
-                    <input id="login" name="login" type="text" autocomplete="username"
-                           class="input @error('login') input--error @enderror"
-                           placeholder="superadmin"
-                           value="{{ old('login') }}" required autofocus>
-                    <x-field-error name="login"/>
+                    <label for="email">Email</label>
+                    <input id="email" name="email" type="email" autocomplete="username"
+                           class="input @error('email') input--error @enderror"
+                           placeholder="you@example.com"
+                           value="{{ old('email') }}" required autofocus>
+                    <x-field-error name="email"/>
                 </div>
 
                 <div class="field col-md-12 col-lg-12 col-sm-12 col-xs-12">
@@ -52,8 +50,6 @@
                     <x-field-error name="password"/>
                 </div>
 
-                {{-- No field--check here: these columns are already full
-                     width, so there is no neighbouring label to align to. --}}
                 <div class="field col-md-12 col-lg-12 col-sm-12 col-xs-12">
                     <label class="check">
                         <input type="checkbox" name="remember" value="1" @checked(old('remember'))>
@@ -72,7 +68,7 @@
         {{-- The two doors cross-link, so someone who bookmarked the wrong one
              is never stuck guessing which sign-in is theirs. --}}
         <p class="sub" style="margin-top:14px;text-align:center;">
-            Not an administrator? <a href="{{ route('user.login') }}">Sign in here</a>.
+            Administrator? <a href="{{ route('admin.login') }}">Sign in here</a>.
         </p>
     </div>
 </div>

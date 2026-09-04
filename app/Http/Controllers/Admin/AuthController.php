@@ -65,16 +65,27 @@ class AuthController extends Controller
             ->with('success', 'Welcome back, '.Auth::guard('admin')->user()->name.'.');
     }
 
+    /**
+     * One logout for both doors.
+     *
+     * Admins and panel users share every screen, so they share the button that
+     * signs them out; which guard is holding the session decides which one is
+     * ended and which login screen they land back on.
+     */
     public function logout(Request $request): RedirectResponse
     {
-        // Logged before the guard forgets who it was.
-        UserActivity::record('logout', 'admins', Auth::guard('admin')->id(), 'Signed out');
+        $isAdmin = Auth::guard('admin')->check();
+        $guard = $isAdmin ? 'admin' : 'web';
 
-        Auth::guard('admin')->logout();
+        // Logged before the guard forgets who it was.
+        UserActivity::record('logout', $isAdmin ? 'admins' : 'users', Auth::guard($guard)->id(), 'Signed out');
+
+        Auth::guard($guard)->logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('admin.login')->with('success', 'You have been logged out.');
+        return redirect()->route($isAdmin ? 'admin.login' : 'user.login')
+            ->with('success', 'You have been logged out.');
     }
 }

@@ -34,7 +34,11 @@
     <x-field-error name="company_id"/>
     @if ($companies->isEmpty())
         <span class="hint">
-            No companies yet - <a href="{{ route('admin.companies.create') }}">add one</a> first.
+            @admin
+                No companies yet - <a href="{{ route('admin.companies.create') }}">add one</a> first.
+            @else
+                No companies are mapped to you yet - ask an administrator for access.
+            @endadmin
         </span>
     @endif
 </div>

@@ -6,6 +6,7 @@ use App\Models\Company;
 use App\Models\Person;
 use App\Models\Project;
 use App\Models\Transaction;
+use App\Support\CompanyAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -31,7 +32,11 @@ class HierarchyReport
 
     public static function forRange(?string $from = null, ?string $to = null): self
     {
-        return new self(Transaction::query()->between($from, $to));
+        return new self(
+            Transaction::query()
+                ->forCompanies(CompanyAccess::scopeIds())
+                ->between($from, $to),
+        );
     }
 
     /* ===================== Building blocks ===================== */
@@ -144,7 +149,16 @@ class HierarchyReport
         $projectTotals = $this->totalsBy('project_id');
         $personTotals = $this->personTotalsPerProject();
 
+        // The company rows are read from the companies table, not derived from
+        // the transaction query, so the boundary has to be applied here too -
+        // otherwise a scoped user would see every company's *name* sitting in
+        // the tree with zero totals beside it.
+        //
+        // allowedIds() rather than scopeIds(): $companyId is already how a
+        // caller narrows to one company, and an admin looking at one company's
+        // page must still get its tree while the header says another.
         $companies = Company::query()
+            ->forCompanies(CompanyAccess::allowedIds())
             ->when($companyId, fn (Builder $q) => $q->where('id', $companyId))
             ->with(['projects' => fn ($q) => $q->orderBy('name')->with('people')])
             ->orderBy('name')

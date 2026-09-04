@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Services\FinanceReport;
 use App\Services\HierarchyReport;
 use App\Services\SettlementEngine;
+use App\Support\CompanyAccess;
 use App\Support\DateRange;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -34,9 +35,14 @@ class DashboardController extends Controller
             'expenseByCategory' => $report->byCategory('expense'),
             'recent' => $recent,
             // The Company -> Project -> Person tree for the same period as
-            // everything else on the page.
-            'tree' => $hierarchy->tree(),
-            'unassigned' => $report->query()->unassigned()->count(),
+            // everything else on the page. Passing the header's selection
+            // narrows it to one company; "All companies" leaves it at every
+            // company the actor is mapped to, which is what tree() already
+            // limits itself to.
+            'tree' => $hierarchy->tree(CompanyAccess::selectedId()),
+            // Unfiled rows are an admin's problem - a scoped user cannot see
+            // them at all, so the prompt to go and file them is not theirs.
+            'unassigned' => CompanyAccess::isAdmin() ? $report->query()->unassigned()->count() : 0,
             // Settlement follows the same period as the rest of the page.
             ...$this->settlement($range),
         ]);
@@ -56,8 +62,14 @@ class DashboardController extends Controller
      */
     private function settlement(DateRange $range): array
     {
+        // The engine settles exactly the projects handed to it, so narrowing
+        // this list is what keeps another company's partner balances off the
+        // dashboard.
         $plans = SettlementEngine::forProjects(
-            Project::with('company')->orderBy('name')->get(),
+            Project::forCompanies(CompanyAccess::scopeIds())
+                ->with('company')
+                ->orderBy('name')
+                ->get(),
             $range->from,
             $range->to,
         );
